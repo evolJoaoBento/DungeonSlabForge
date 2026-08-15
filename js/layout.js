@@ -33,6 +33,23 @@ const PROPS = { T: "tree", t: "table", h: "chair", C: "chest", B: "bed", s: "she
  */
 const FACING = { "0,1": 0, "-1,0": 90, "0,-1": 180, "1,0": 270 };
 
+/**
+ * Turned onto TaleSpire's own sense of which way is which.
+ *
+ * The table above says which way a tile should look, in the terms the picture
+ * is drawn in. Which number produces that look in the game is a fact about
+ * TaleSpire, and the only instrument that reads it is the game: built with no
+ * offset, every wall came out a quarter turn anticlockwise from where it
+ * belonged.
+ *
+ * If they are still wrong, this is the one number to change, and there are only
+ * four values worth trying: 0, 90, 180, 270. Every facing turns together, so a
+ * whole map is either right or uniformly wrong — never half of each.
+ */
+export const FACING_OFFSET = 90;
+
+const turned = (degree) => (degree + FACING_OFFSET) % 360;
+
 const snap = (units) => Math.round(units / TILE_VERTICAL_STEP) * TILE_VERTICAL_STEP;
 
 function labelAt(rows, x, y) {
@@ -61,7 +78,7 @@ function propRotation(seed, x, y) {
 function doorRotation(rows, x, y) {
   const eastWest = WALL_LIKE.has(labelAt(rows, x - 1, y)) || WALL_LIKE.has(labelAt(rows, x + 1, y));
   const northSouth = WALL_LIKE.has(labelAt(rows, x, y - 1)) || WALL_LIKE.has(labelAt(rows, x, y + 1));
-  return northSouth && !eastWest ? 90 : 0;
+  return turned(northSouth && !eastWest ? 90 : 0);
 }
 
 /** Turn a wall tile to face the space it encloses. A wall tile has a front, and
@@ -70,9 +87,9 @@ function doorRotation(rows, x, y) {
 function wallRotation(rows, x, y) {
   for (const [step, degree] of Object.entries(FACING)) {
     const [dx, dy] = step.split(",").map(Number);
-    if (isOpen(labelAt(rows, x + dx, y + dy))) return degree;
+    if (isOpen(labelAt(rows, x + dx, y + dy))) return turned(degree);
   }
-  return 0;
+  return turned(0);
 }
 
 function cellPlacements(rows, theme, label, gx, gy, lx, ly, seed, base, out) {
@@ -151,11 +168,11 @@ function boundaryPlacements(rows, edges, section, theme, out) {
       if (kind === "vertical") {
         x = MARGIN + localX * UNITS_PER_TILE - HALF_TILE;
         y = MARGIN + (section.height - 1 - localY) * UNITS_PER_TILE;
-        facing = isOpen(labelAt(rows, gx, gy)) ? FACING["1,0"] : FACING["-1,0"];
+        facing = turned(isOpen(labelAt(rows, gx, gy)) ? FACING["1,0"] : FACING["-1,0"]);
       } else {
         x = MARGIN + localX * UNITS_PER_TILE;
         y = MARGIN + (section.height - 1 - localY) * UNITS_PER_TILE + HALF_TILE;
-        facing = isOpen(labelAt(rows, gx, gy)) ? FACING["0,1"] : FACING["0,-1"];
+        facing = turned(isOpen(labelAt(rows, gx, gy)) ? FACING["0,1"] : FACING["0,-1"]);
       }
       for (let layer = 0; layer < theme.wallLayers; layer++) {
         out.push({ assetId: wall.id, x, y, z: theme.baseZ + layer * step, degree: facing });
