@@ -1,0 +1,65 @@
+{
+  "dungeon-stone": {
+    "description": "Worked stone: castle floors, ruined stone walls. The default for indoor battlemaps.",
+    "wall_layers": 1,
+    "labels": {
+      "floor": { "name": "castle floor 1x1", "kind": "Tiles" },
+      "wood_floor": { "name": "Tavern Floor 01", "kind": "Tiles", "fallback": "floor" },
+      "wall": { "name": "Castle Ruins Wallbase 02", "kind": "Tiles" },
+      "water": { "name": "tempWater1x1", "kind": "Tiles", "sink": 1 },
+      "door": { "name": "Door - Dungeon", "kind": "Tiles" },
+      "double_door": { "name": "Door - Dungeon", "kind": "Tiles", "fallback": "door" },
+      "grass": { "name": "Grass 1x1", "kind": "Tiles", "fallback": "floor" },
+      "tree": { "name": "Jungle tree base 01", "kind": "Props" },
+      "table": { "name": "Castle Table", "kind": "Props" },
+      "chair": { "name": "chair wood 01", "kind": "Props" },
+      "chest": { "name": "Leather Chest", "kind": "Props" },
+      "bed": { "name": "Bed Double Moorgoth", "kind": "Props" },
+      "shelf": { "name": "Bookshelf 01", "kind": "Props" },
+      "clutter": { "name": "Barrel", "kind": "Props" },
+      "stairs": { "name": "bg_stairs_01", "kind": "Tiles" }
+    }
+  },
+  "cave": {
+    "description": "Rough rock: cavern floors and walls. For natural caves and mines.",
+    "wall_layers": 1,
+    "labels": {
+      "floor": { "name": "Cave Floor - Rock 2", "kind": "Tiles" },
+      "wood_floor": { "name": "Tavern Floor 01", "kind": "Tiles", "fallback": "floor" },
+      "wall": { "name": "Cave Wall 01", "kind": "Tiles" },
+      "water": { "name": "tempWater1x1", "kind": "Tiles", "sink": 1 },
+      "door": { "name": "Door - Dungeon", "kind": "Tiles" },
+      "double_door": { "name": "Door - Dungeon", "kind": "Tiles", "fallback": "door" },
+      "grass": { "name": "Grass 1x1", "kind": "Tiles", "fallback": "floor" },
+      "tree": { "name": "Jungle tree base 01", "kind": "Props" },
+      "table": { "name": "Castle Table", "kind": "Props" },
+      "chair": { "name": "chair wood 01", "kind": "Props" },
+      "chest": { "name": "Leather Chest", "kind": "Props" },
+      "bed": { "name": "Bed Double Moorgoth", "kind": "Props" },
+      "shelf": { "name": "Bookshelf 01", "kind": "Props" },
+      "clutter": { "name": "Barrel", "kind": "Props" },
+      "stairs": { "name": "bg_stairs_01", "kind": "Tiles" }
+    }
+  },
+  "burrow-dirt": {
+    "description": "Packed earth: dirt floors and burrow walls. For tunnels, lairs and dug-out spaces.",
+    "wall_layers": 1,
+    "labels": {
+      "floor": { "name": "burrow_floor_1x1_01", "kind": "Tiles" },
+      "wood_floor": { "name": "Tavern Floor 01", "kind": "Tiles", "fallback": "floor" },
+      "wall": { "name": "burrow_wall_1x1_01", "kind": "Tiles" },
+      "water": { "name": "tempWater1x1", "kind": "Tiles", "sink": 1 },
+      "door": { "name": "Door - Dungeon", "kind": "Tiles" },
+      "double_door": { "name": "Door - Dungeon", "kind": "Tiles", "fallback": "door" },
+      "grass": { "name": "Grass 1x1", "kind": "Tiles", "fallback": "floor" },
+      "tree": { "name": "Jungle tree base 01", "kind": "Props" },
+      "table": { "name": "Castle Table", "kind": "Props" },
+      "chair": { "name": "chair wood 01", "kind": "Props" },
+      "chest": { "name": "Leather Chest", "kind": "Props" },
+      "bed": { "name": "Bed Double Moorgoth", "kind": "Props" },
+      "shelf": { "name": "Bookshelf 01", "kind": "Props" },
+      "clutter": { "name": "Barrel", "kind": "Props" },
+      "stairs": { "name": "burrow_stairs_01", "kind": "Tiles" }
+    }
+  }
+}
