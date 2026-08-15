@@ -13,11 +13,15 @@
  * uploaded: it runs here, on this machine, in WebAssembly.
  */
 
-const LIBRARY = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2";
+/** Pinned, and not below 3.1: the background-removal task does not exist in
+ *  earlier versions, which fails as "Unsupported pipeline" the first time
+ *  anyone presses the button. Checked against 3.7.6 in a browser. */
+const LIBRARY = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6";
 const MODEL = "briaai/RMBG-1.4";
 
-/** The model works on a shrunk copy: measured on a 6800x8700 map, the answer at
- *  2400 matched the answer at 1600 to a tenth of a percent. */
+/** The model resizes to its own working size whatever it is given, so a bigger
+ *  copy costs upload and nothing else. Measured on a 6800x8700 map, the answer
+ *  at 2400 matched the answer at 1600 to a tenth of a percent. */
 const WORKING_MAX = 1024;
 
 /** Islands and holes smaller than this share of the picture are noise: the
@@ -91,19 +95,19 @@ export async function removeBackground(source, onProgress) {
   small.height = workH;
   small.getContext("2d").drawImage(source, 0, 0, workW, workH);
 
-  const [cut] = await model(small.toDataURL("image/png"));
-  const cutCanvas = document.createElement("canvas");
-  cutCanvas.width = workW;
-  cutCanvas.height = workH;
+  const answer = await model(small.toDataURL("image/png"));
+  const cut = Array.isArray(answer) ? answer[0] : answer;
+  // The task hands back a RawImage, which knows how to become a canvas.
+  const cutCanvas = cut.toCanvas();
   const cutContext = cutCanvas.getContext("2d", { willReadFrequently: true });
-  cutContext.drawImage(await createImageBitmap(await cut.toBlob()), 0, 0, workW, workH);
-
-  const cutData = cutContext.getImageData(0, 0, workW, workH);
-  const mask = new Uint8Array(workW * workH);
+  const cutData = cutContext.getImageData(0, 0, cutCanvas.width, cutCanvas.height);
+  const maskW = cutCanvas.width;
+  const maskH = cutCanvas.height;
+  const mask = new Uint8Array(maskW * maskH);
   for (let i = 3, p = 0; i < cutData.data.length; i += 4, p++) {
     mask[p] = cutData.data[i] >= OPAQUE ? 1 : 0;
   }
-  withoutSpecks(mask, workW, workH);
+  withoutSpecks(mask, maskW, maskH);
 
   for (let i = 3, p = 0; i < cutData.data.length; i += 4, p++) {
     cutData.data[i] = mask[p] ? 255 : 0;
