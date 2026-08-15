@@ -10,16 +10,18 @@ machine.
 
 ## What it does
 
-1. **Reads your packs.** A slab names assets by id, so the page needs to know
-   which assets you own. Point it at your TaleSpire `Taleweaver` folder once; it
-   parses the pack indexes here and keeps them in local storage.
-2. **Takes a map image**, and optionally cuts the background out with a
+1. **Takes a map image**, and optionally cuts the background out with a
    segmentation model that runs in WebAssembly.
-3. **Finds the scale**, including where the grid starts — not every map is drawn
+2. **Finds the scale**, including where the grid starts — not every map is drawn
    with its first square flush against the corner.
-4. **Reads the map** into floors, walls and water. Instant, free, no AI.
-5. **Picks a palette** from your packs, with a swap for every label.
-6. **Builds slabs** you click to copy and paste straight into TaleSpire.
+3. **Reads the map** into floors, walls and water. Instant, free, no AI.
+4. **Picks a palette**, with a swap for every label.
+5. **Builds slabs** you click to copy and paste straight into TaleSpire.
+
+The asset list ships with the page — 2875 assets from the packs TaleSpire
+itself comes with, 130 KB compressed — so there is nothing to set up first.
+`tools/build_catalog.py` regenerates it from an installed copy after a game
+update.
 
 ## How it reads a map
 
@@ -82,5 +84,9 @@ If it saved you an evening of laying tiles by hand,
 
 ## Licence
 
-MIT. TaleSpire and its asset packs belong to Bouncyrock; nothing of theirs is
-redistributed here, which is why the page asks for your own pack indexes.
+MIT, for the code.
+
+TaleSpire and its asset packs belong to Bouncyrock. `js/catalog.json` is a list
+of asset names, ids, tags and sizes taken from the packs the game ships with —
+metadata only, no art, no meshes, nothing playable — included so the page works
+without setup. If Bouncyrock would rather it were not here, say so and it goes.

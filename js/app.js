@@ -1,12 +1,12 @@
 /**
- * The page: packs, picture, scale, reading, palette, slabs.
+ * The page: picture, scale, reading, palette, slabs.
  *
  * Every step runs here in the tab. There is no server, so there is nowhere for
- * a map to be uploaded to — which is also why the asset catalog has to come
- * from the user rather than from the site.
+ * a map to be uploaded to, and the asset catalog is shipped with the page so
+ * there is nothing to set up before the first map.
  */
 
-import { Catalog, readIndexFiles } from "./catalog.js";
+import { Catalog } from "./catalog.js";
 import { GridPlan, detectGrid } from "./grid.js";
 import { readMap } from "./reader.js";
 import { place } from "./layout.js";
@@ -31,41 +31,7 @@ const state = {
   reading: null,
 };
 
-// --- 1: the packs -------------------------------------------------------------
-
-function showCatalog() {
-  const count = state.catalog ? state.catalog.assets.length : 0;
-  const packs = state.catalog ? new Set(state.catalog.assets.map((a) => a.pack)).size : 0;
-  $("packs-readout").textContent = count
-    ? `${count} assets from ${packs} pack(s)`
-    : "no packs loaded yet";
-  $("forget-packs").hidden = !count;
-  $("step-upload").hidden = !count;
-}
-
-async function usePacks(files) {
-  $("packs-readout").textContent = "reading the pack indexes…";
-  try {
-    state.catalog = await readIndexFiles([...files]);
-    state.catalog.remember();
-    state.themes = await loadThemes(state.catalog);
-    fillThemes();
-    showCatalog();
-  } catch (error) {
-    $("packs-readout").textContent = error.message;
-  }
-}
-
-$("pack-folder").addEventListener("change", (e) => usePacks(e.target.files));
-$("pack-files").addEventListener("change", (e) => usePacks(e.target.files));
-$("forget-packs").addEventListener("click", () => {
-  Catalog.forget();
-  state.catalog = null;
-  state.themes = null;
-  showCatalog();
-});
-
-// --- 2: the picture -----------------------------------------------------------
+// --- 1: the picture -----------------------------------------------------------
 
 async function useImage(file) {
   const bitmap = await createImageBitmap(file);
@@ -142,7 +108,7 @@ $("restore-background").addEventListener("click", () => {
   refreshGrid();
 });
 
-// --- 3: the scale -------------------------------------------------------------
+// --- 2: the scale -------------------------------------------------------------
 
 let gridTimer = null;
 function scheduleGrid() {
@@ -229,7 +195,7 @@ function drawOverlay() {
   }
 }
 
-// --- 4: the reading -----------------------------------------------------------
+// --- 3: the reading -----------------------------------------------------------
 
 $("read-map").addEventListener("click", () => {
   const started = performance.now();
@@ -239,7 +205,7 @@ $("read-map").addEventListener("click", () => {
   $("read-readout").textContent =
     `${floors} cells, ${walls} walls on boundaries, in ${Math.round(performance.now() - started)} ms`;
   drawReading();
-  $("step-theme").hidden = !state.themes;
+  $("step-theme").hidden = false;
   $("step-build").hidden = false;
 });
 
@@ -275,7 +241,7 @@ function drawReading() {
   }
 }
 
-// --- 5: the palette -----------------------------------------------------------
+// --- 4: the palette -----------------------------------------------------------
 
 function fillThemes() {
   const select = $("theme");
@@ -321,7 +287,7 @@ function applyTheme() {
   }
 }
 
-// --- 6: the slabs -------------------------------------------------------------
+// --- 5: the slabs -------------------------------------------------------------
 
 $("build").addEventListener("click", async () => {
   if (!state.reading) { $("build-readout").textContent = "read the map first"; return; }
@@ -366,10 +332,13 @@ $("build").addEventListener("click", async () => {
 // --- start --------------------------------------------------------------------
 
 (async function start() {
-  state.catalog = Catalog.fromStorage();
-  if (state.catalog) {
+  try {
+    state.catalog = await Catalog.load();
     state.themes = await loadThemes(state.catalog);
     fillThemes();
+  } catch (error) {
+    // Without a catalog nothing can be built, so say so where it will be read
+    // rather than failing quietly at the last step.
+    $("upload-info").textContent = error.message;
   }
-  showCatalog();
 })();

@@ -14,7 +14,7 @@
   <div>
     <h1>slabforge</h1>
     <p>Battlemap image &rarr; TaleSpire slabs. Everything happens in this tab —
-      your map is never uploaded anywhere.</p>
+      your map is never uploaded anywhere, and the asset list is already here.</p>
   </div>
   <a class="coffee" href="https://buymeacoffee.com/joaobento" target="_blank" rel="noopener">
     ☕ Buy me a coffee
@@ -23,29 +23,8 @@
 
 <main>
 
-<section class="step" id="step-packs">
-  <h2><span class="num">1</span> Your TaleSpire packs</h2>
-  <p class="hint">A slab names assets by id, so the page needs to know which
-    assets you have. Point it at your TaleSpire <code>Taleweaver</code> folder,
-    or pick the <code>index.json</code> files inside it. They are read here and
-    kept in this browser — nothing is sent anywhere.</p>
-  <div class="controls">
-    <label class="button">
-      Choose the Taleweaver folder
-      <input type="file" id="pack-folder" webkitdirectory directory multiple hidden>
-    </label>
-    <label class="button">
-      Or pick index.json files
-      <input type="file" id="pack-files" accept="application/json,.json" multiple hidden>
-    </label>
-    <button id="forget-packs" hidden>Forget them</button>
-    <span class="readout" id="packs-readout"></span>
-  </div>
-  <p class="hint">Usually <code>C:\Program Files (x86)\Steam\steamapps\common\TaleSpire\Taleweaver</code>.</p>
-</section>
-
-<section class="step" id="step-upload" hidden>
-  <h2><span class="num">2</span> Map image</h2>
+<section class="step" id="step-upload">
+  <h2><span class="num">1</span> Map image</h2>
   <label class="drop" for="file">
     <input type="file" id="file" accept="image/*" hidden>
     <span id="drop-text">Choose a battlemap, or drop one here&hellip;</span>
@@ -68,7 +47,7 @@
 </section>
 
 <section class="step" id="step-grid" hidden>
-  <h2><span class="num">3</span> Scale</h2>
+  <h2><span class="num">2</span> Scale</h2>
   <div class="controls">
     <label>Pixels per square
       <input type="range" id="px" min="8" max="300" value="70">
@@ -96,7 +75,7 @@
 </section>
 
 <section class="step" id="step-labels" hidden>
-  <h2><span class="num">4</span> Read the map</h2>
+  <h2><span class="num">3</span> Read the map</h2>
   <div class="controls">
     <button id="read-map" class="primary">Read map now</button>
     <span class="readout" id="read-readout"></span>
@@ -109,7 +88,7 @@
 </section>
 
 <section class="step" id="step-theme" hidden>
-  <h2><span class="num">5</span> Palette</h2>
+  <h2><span class="num">4</span> Palette</h2>
   <div class="controls">
     <select id="theme"></select>
     <span class="readout" id="theme-readout"></span>
@@ -118,7 +97,7 @@
 </section>
 
 <section class="step" id="step-build" hidden>
-  <h2><span class="num">6</span> Slabs</h2>
+  <h2><span class="num">5</span> Slabs</h2>
   <div class="controls">
     <button id="build" class="primary">Build slabs</button>
     <span class="readout" id="build-readout"></span>
