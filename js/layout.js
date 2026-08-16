@@ -64,15 +64,33 @@ function heightUnits(theme, label) {
   return asset ? snap(asset.height * UNITS_PER_TILE) : 0;
 }
 
-/** A stable pseudo-random rotation for scatter props: the same map must give
- *  the same slab every time, so this is a hash of the cell, not a random. */
-function propRotation(seed, x, y) {
+/** The same map must give the same slab every time, so anything that looks
+ *  scattered is a hash of the cell it sits in rather than a random. The salt
+ *  keeps two such choices for one cell from moving together. */
+function hashOf(salt, seed, x, y) {
   let hash = 2166136261 ^ seed;
-  for (const char of `${seed}:${x}:${y}`) {
+  for (const char of `${salt}:${seed}:${x}:${y}`) {
     hash ^= char.charCodeAt(0);
     hash = Math.imul(hash, 16777619) >>> 0;
   }
-  return (hash % 24) * 15;
+  return hash;
+}
+
+const propRotation = (seed, x, y) => (hashOf("rotation", seed, x, y) % 24) * 15;
+
+/**
+ * Which of a label's pieces this cell is built from.
+ *
+ * A label usually holds one, and then this is that one. Given several it
+ * spreads them over the map by position, which is what stops a room reading as
+ * a tiled wallpaper — and it does so identically on every rebuild, and
+ * identically on both sides of a section seam, because the cell's place in the
+ * whole map is all it consults.
+ */
+function pickVariant(theme, label, seed, x, y) {
+  const held = theme.variants && theme.variants[label];
+  if (!held || held.length < 2) return theme.assets[label];
+  return held[hashOf(`variant:${label}`, seed, x, y) % held.length];
 }
 
 function doorRotation(rows, x, y) {
@@ -93,7 +111,7 @@ function wallRotation(rows, x, y) {
 }
 
 function cellPlacements(rows, theme, label, gx, gy, lx, ly, seed, base, out) {
-  const asset = (name) => theme.assets[name];
+  const asset = (name) => pickVariant(theme, name, seed, gx, gy);
   const put = (a, z, degree = 0) => out.push({ assetId: a.id, x: lx, y: ly, z, degree });
 
   if (NEEDS_FLOOR.has(label) && asset("floor")) put(asset("floor"), base);
@@ -150,9 +168,11 @@ function cellPlacements(rows, theme, label, gx, gy, lx, ly, seed, base, out) {
 }
 
 /** Walls for the boundaries this section owns. */
-function boundaryPlacements(rows, edges, section, theme, out) {
-  const wall = theme.assets.wall;
-  if (!wall) return;
+function boundaryPlacements(rows, edges, section, theme, seed, out) {
+  if (!theme.assets.wall) return;
+  // The stack's step comes from the label's own piece, never from whichever
+  // variant this edge drew: a run of wall that stepped at different heights
+  // along its length would not be a wall.
   const step = heightUnits(theme, "wall");
 
   for (const kind of ["vertical", "horizontal"]) {
@@ -174,6 +194,7 @@ function boundaryPlacements(rows, edges, section, theme, out) {
         y = MARGIN + (section.height - 1 - localY) * UNITS_PER_TILE + HALF_TILE;
         facing = turned(isOpen(labelAt(rows, gx, gy)) ? FACING["0,1"] : FACING["0,-1"]);
       }
+      const wall = pickVariant(theme, "wall", seed, gx, gy);
       for (let layer = 0; layer < theme.wallLayers; layer++) {
         out.push({ assetId: wall.id, x, y, z: theme.baseZ + layer * step, degree: facing });
       }
@@ -204,6 +225,6 @@ export function place(rows, edges, section, theme, seed = 0) {
       cellPlacements(rows, theme, label, gx, gy, MARGIN + col * UNITS_PER_TILE, ly, seed, base, out);
     }
   }
-  if (edges) boundaryPlacements(rows, edges, section, theme, out);
+  if (edges) boundaryPlacements(rows, edges, section, theme, seed, out);
   return out;
 }

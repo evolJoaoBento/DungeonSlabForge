@@ -26,6 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JS = ROOT / "js"
+ASSETS = ROOT / "assets"
 OUT = ROOT / "symbiote" / "DungeonSlabForge"
 
 ENTRY = "app"
@@ -34,8 +35,12 @@ MANIFEST = {
     "manifestVersion": 1,
     "name": "DungeonSlabForge",
     "entryPoint": "/index.html",
-    "version": "1.0",
+    "version": "0.1.0",
     "summary": "Turn a battlemap image into TaleSpire slabs, without leaving the game.",
+    "descriptionFilePath": "/description.md",
+    # The library shows the first beside the Symbiote; the second is drawn as a
+    # monochrome mask, so it is a shape rather than a picture.
+    "icons": {"64x64": "/icon-64.png", "notification": "/icon-24.png"},
     "license": "MIT",
     "about": {
         "website": "https://github.com/evolJoaoBento/DungeonSlabForge",
@@ -237,12 +242,18 @@ def page() -> str:
 def harness(html: str) -> str:
     """The built page with a stand-in for TaleSpire in front of it.
 
-    Written beside the real one so the Symbiote can be driven in a browser: the
-    game is the one place this code cannot be watched while it runs.
+    Written one directory up rather than beside the real one: everything in the
+    Symbiote's own folder is published with it, and a page that loads a mock of
+    the game is scaffolding, not something to ship. From up here it reaches the
+    same built files, and the folder below stays exactly what a player installs.
     """
-    return html.replace(
-        '<script src="app.js"></script>',
-        '<script src="/tools/mock_talespire.js"></script>\n<script src="app.js"></script>',
+    return (
+        html.replace('href="style.css"', 'href="DungeonSlabForge/style.css"')
+        .replace(
+            '<script src="app.js"></script>',
+            '<script src="/tools/mock_talespire.js"></script>\n'
+            '<script src="DungeonSlabForge/app.js"></script>',
+        )
     )
 
 
@@ -260,16 +271,25 @@ def main() -> None:
     html = page()
     (OUT / "app.js").write_text(script, encoding="utf-8")
     (OUT / "index.html").write_text(html, encoding="utf-8")
-    (OUT / "harness.html").write_text(harness(html), encoding="utf-8")
     shutil.copy(ROOT / "css" / "style.css", OUT / "style.css")
     (OUT / "manifest.json").write_text(
         json.dumps(MANIFEST, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    # What the library shows about the Symbiote before anyone installs it.
+    for name in ("description.md", "icon-64.png", "icon-24.png"):
+        source = ASSETS / name
+        if not source.exists():
+            raise SystemExit(f"{source} is missing; run tools/build_icons.py.")
+        shutil.copy(source, OUT / name)
+
+    # Scaffolding, so it goes outside the folder that gets published.
+    (OUT.parent / "harness.html").write_text(harness(html), encoding="utf-8")
 
     print(f"wrote {OUT}")
     print(f"  app.js      {len(script) / 1024:.0f} KB, {len(order_modules(ENTRY))} modules")
     print("  index.html, style.css, manifest.json")
-    print("  harness.html — the same page with a stand-in for TaleSpire")
+    print("  description.md, icon-64.png, icon-24.png")
+    print(f"  {OUT.parent / 'harness.html'} — the same page with a stand-in for TaleSpire")
 
 
 if __name__ == "__main__":

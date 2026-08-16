@@ -68,6 +68,10 @@ export function resolveTheme(name, spec, catalog) {
     wallLayers: spec.wall_layers ?? 1,
     baseZ: deepest * 100,
     assets,
+    // What a label may draw from, the primary first. A theme resolves to one
+    // piece per label; a person can give it several, and then a floor stops
+    // being four hundred copies of the same tile.
+    variants: Object.fromEntries(Object.entries(assets).map(([label, a]) => [label, [a]])),
     sinks,
     queries,
     warnings,
@@ -77,10 +81,25 @@ export function resolveTheme(name, spec, catalog) {
       const query = this.queries[label];
       return query ? this.catalog.query(query) : [];
     },
-    withOverride(label, assetId) {
-      const asset = this.catalog.byId.get(assetId.toLowerCase());
-      if (!asset) throw new Error(`No asset ${assetId} in the packs you loaded.`);
-      return { ...this, assets: { ...this.assets, [label]: asset } };
+    /**
+     * The theme with one label drawing from a chosen set of pieces.
+     *
+     * Ids that no longer name anything are dropped rather than refused: they
+     * come from a palette saved when another pack was ticked, and losing the
+     * one piece that went away is better than losing the whole choice.
+     */
+    withVariants(label, assetIds) {
+      const found = assetIds
+        .map((id) => this.catalog.byId.get(String(id).toLowerCase()))
+        .filter(Boolean);
+      if (!found.length) {
+        throw new Error(`None of those assets are in the packs you loaded.`);
+      }
+      return {
+        ...this,
+        assets: { ...this.assets, [label]: found[0] },
+        variants: { ...this.variants, [label]: found },
+      };
     },
   };
 }

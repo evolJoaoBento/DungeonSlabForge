@@ -1,10 +1,18 @@
 /**
  * Where the map's squares are: how big they are, and where they start.
  *
- * A plan is derived from the tile count rather than from the pitch directly,
- * so the cells always tile the map exactly and the last row and column reach
- * the edge instead of stopping just short of it. "The map" means the picture
- * from the pivot on — what lies before the pivot is margin.
+ * Cells sit at the pitch, from the pivot on. Nothing is stretched to reach the
+ * far edge: a picture is rarely a whole number of squares wide, and spreading
+ * the cells to cover the remainder bends every one of them by a fraction of a
+ * square that piles up across the map. On a 2000 pixel picture read at 70 that
+ * came to nearly half a cell by the far side — enough to put a wall in the
+ * wrong square, so a pasted slab no longer matched the map it was read from.
+ *
+ * What lies before the pivot is margin, and so is whatever is left over after
+ * the last whole square. The count is rounded rather than floored, because a
+ * pitch measured a hair too long would otherwise drop a real row; the cost is
+ * that a last cell can hang over the edge of the picture, and the part hanging
+ * over reads as nothing, which is what it is.
  */
 
 export const MAX_SECTION_TILES = 100;
@@ -35,6 +43,13 @@ export class GridPlan {
     this.tilesW = Math.max(1, Math.round((imageW - originX) / pxPerSquare));
     this.tilesH = Math.max(1, Math.round((imageH - originY) / pxPerSquare));
 
+    // The picture those cells cover, which is what the reader must sample and
+    // the overlay must draw. Deliberately not clipped to the picture: clipping
+    // it and then fitting the cells inside would stretch the last one, which is
+    // the whole fault this measurement exists to avoid.
+    this.coveredW = this.tilesW * pxPerSquare;
+    this.coveredH = this.tilesH * pxPerSquare;
+
     this.sections = [];
     for (let row = 0; row < Math.ceil(this.tilesH / sectionTiles); row++) {
       for (let col = 0; col < Math.ceil(this.tilesW / sectionTiles); col++) {
@@ -51,15 +66,22 @@ export class GridPlan {
     }
   }
 
-  /** The picture pixels one cell covers. */
+  /** The picture pixels one cell covers, at the pitch it was measured at. */
   cellRect(x, y) {
-    const spanW = this.imageW - this.originX;
-    const spanH = this.imageH - this.originY;
     return {
-      left: this.originX + Math.round((x * spanW) / this.tilesW),
-      top: this.originY + Math.round((y * spanH) / this.tilesH),
-      right: this.originX + Math.round(((x + 1) * spanW) / this.tilesW),
-      bottom: this.originY + Math.round(((y + 1) * spanH) / this.tilesH),
+      left: this.originX + Math.round(x * this.pxPerSquare),
+      top: this.originY + Math.round(y * this.pxPerSquare),
+      right: this.originX + Math.round((x + 1) * this.pxPerSquare),
+      bottom: this.originY + Math.round((y + 1) * this.pxPerSquare),
+    };
+  }
+
+  /** What the cells do not cover, in pixels: margin at the far edge. Negative
+   *  where the last cell hangs over the edge of the picture. */
+  get margin() {
+    return {
+      x: Math.round(this.imageW - this.originX - this.coveredW),
+      y: Math.round(this.imageH - this.originY - this.coveredH),
     };
   }
 }

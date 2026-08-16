@@ -9,7 +9,7 @@
 import { Catalog } from "./catalog.js";
 import { GridPlan, detectGrid } from "./grid.js";
 import { readMap } from "./reader.js";
-import { place } from "./layout.js";
+import { place, MARGIN, UNITS_PER_TILE } from "./layout.js";
 import { loadThemes } from "./themes.js";
 import { buildSlab } from "./slab.js";
 import * as talespire from "./talespire.js";
@@ -26,6 +26,14 @@ const COLOURS = {
   "#": "#6b7280", ".": "#c9b98d", "w": "#8b5a2b", "~": "#3b82f6", "+": "#b45309",
   "D": "#8b4513", ",": "#4ade80", "T": "#15803d", "t": "#d97706", "h": "#f59e0b",
   "C": "#fbbf24", "B": "#93c5fd", "s": "#78350f", "X": "#9ca3af", "^": "#a855f7",
+};
+
+/** Which mark on the read map each label answers to, so a built section can be
+ *  painted in the colours the map was painted in. */
+const LABEL_SYMBOL = {
+  floor: ".", wood_floor: "w", wall: "#", water: "~", door: "+", double_door: "D",
+  grass: ",", stairs: "^", tree: "T", table: "t", chair: "h", chest: "C",
+  bed: "B", shelf: "s", clutter: "X",
 };
 
 const state = {
@@ -103,11 +111,9 @@ const drop = document.querySelector(".drop");
  *
  * The dialog works inside TaleSpire, but the game keeps the focus and the
  * dialog opens behind it, which reads exactly like a button that does nothing.
- * These two ways in never leave the panel.
+ * Ctrl+V never leaves the panel. It costs nothing when the clipboard holds no
+ * picture, and is the shortest path from a screenshot to a map.
  */
-
-// Ctrl+V. Costs nothing when the clipboard holds no picture, and is the
-// shortest path from a screenshot to a map.
 window.addEventListener("paste", (event) => {
   const item = [...(event.clipboardData?.items || [])].find((entry) =>
     entry.type.startsWith("image/")
@@ -115,32 +121,6 @@ window.addEventListener("paste", (event) => {
   if (!item) return;
   event.preventDefault();
   useImage(item.getAsFile(), "pasted picture").catch(sayUploadFailed);
-});
-
-function loadImageAt(source) {
-  return new Promise((settle, fail) => {
-    const image = new Image();
-    image.onload = () => settle(image);
-    image.onerror = () => fail(new Error("nothing there, or not a picture"));
-    image.src = source;
-  });
-}
-
-// A path, resolved against the Symbiote's own folder. A Symbiote cannot read
-// outside its directory, so a map has to be copied in beside it — but that is
-// a copy the player makes once, and it needs no dialog.
-$("load-path").addEventListener("click", async () => {
-  const path = $("image-path").value.trim() || "map.png";
-  $("upload-info").textContent = `looking for ${path}…`;
-  try {
-    await useImage(await loadImageAt(path), path);
-  } catch (error) {
-    $("upload-info").textContent = `Could not load ${path}: ${error.message}`;
-  }
-});
-
-$("image-path").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") $("load-path").click();
 });
 
 function sayUploadFailed(error) {
@@ -171,6 +151,9 @@ $("cut-background").addEventListener("click", async () => {
 
 $("restore-background").addEventListener("click", () => {
   state.image = state.original;
+  // Not back to the default: the picture that has just come back is the one
+  // that was never cut out, and reading it by transparency would find one solid
+  // floor and no walls at all.
   $("map-style").value = "lit_on_dark";
   $("restore-background").hidden = true;
   $("background-readout").textContent = "";
@@ -232,8 +215,10 @@ function refreshGrid() {
     $("grid-readout").textContent = error.message;
     return;
   }
+  const margin = state.plan.margin;
   $("grid-readout").textContent =
-    `${state.plan.tilesW} x ${state.plan.tilesH} tiles, ${state.plan.sections.length} section(s)`;
+    `${state.plan.tilesW} x ${state.plan.tilesH} tiles, ${state.plan.sections.length} section(s)` +
+    (margin.x > 0 || margin.y > 0 ? ` · ${Math.max(0, margin.x)} x ${Math.max(0, margin.y)} px left over` : "");
   state.reading = null;
   drawOverlay();
   $("step-labels").hidden = false;
@@ -261,15 +246,21 @@ function drawOverlay() {
   // Thick enough to still be a line when the whole picture is fitted into a
   // side panel, which is the state it is judged in first.
   context.lineWidth = Math.max(1, canvas.width / 900);
-  const spanW = plan.imageW - plan.originX;
-  const spanH = plan.imageH - plan.originY;
+  // Drawn from the plan's own cells, never measured again here: the last time
+  // this arithmetic was written out twice, the two copies disagreed and the
+  // grid you lined up by eye was not the grid the map was read on. The lines
+  // stop at the last whole square, so whatever is left over shows as margin.
+  const top = plan.originY * scale;
+  const left = plan.originX * scale;
+  const bottom = (plan.originY + plan.coveredH) * scale;
+  const right = (plan.originX + plan.coveredW) * scale;
   for (let x = 0; x <= plan.tilesW; x++) {
-    const at = (plan.originX + (x * spanW) / plan.tilesW) * scale;
-    context.beginPath(); context.moveTo(at, 0); context.lineTo(at, canvas.height); context.stroke();
+    const at = plan.cellRect(x, 0).left * scale;
+    context.beginPath(); context.moveTo(at, top); context.lineTo(at, bottom); context.stroke();
   }
   for (let y = 0; y <= plan.tilesH; y++) {
-    const at = (plan.originY + (y * spanH) / plan.tilesH) * scale;
-    context.beginPath(); context.moveTo(0, at); context.lineTo(canvas.width, at); context.stroke();
+    const at = plan.cellRect(0, y).top * scale;
+    context.beginPath(); context.moveTo(left, at); context.lineTo(right, at); context.stroke();
   }
   zoom.overlay.refit();
 }
@@ -394,7 +385,7 @@ function thePalette() {
   palette = makePalette({
     into: $("theme-labels"),
     picker: $("picker"),
-    thumbnail: (asset) => talespire.thumbnailFor(state.ts, asset),
+    thumbnail: (asset, size) => talespire.iconFor(asset, size),
     onChange: (theme, saved) => {
       state.saved = saved;
       // A null theme is the "automatic" button: the remembered choice is gone,
@@ -424,34 +415,128 @@ $("build").addEventListener("click", async () => {
   const box = $("sections");
   box.innerHTML = "";
   let built = 0, empty = 0, failed = 0;
+  const drawing = [];
 
   for (const section of state.plan.sections) {
     const placements = place(state.reading.rows, state.reading.edges, section, state.theme);
+    if (placements.length) drawing.push({ section, placements });
+
+    // A button standing on the piece of map it will build, rather than in a
+    // list beside it. A map cut into twenty pieces gives twenty buttons, and
+    // twenty labels reading "3,1" tell you nothing about which part of the room
+    // each one is — the map does, so the map is what they sit on.
     const card = document.createElement("div");
     card.className = "slab";
+    card.textContent = section.key;
+    card.style.left = `${((section.x0 + section.width / 2) / state.plan.tilesW) * 100}%`;
+    card.style.top = `${((section.y0 + section.height / 2) / state.plan.tilesH) * 100}%`;
+
     if (!placements.length) {
       card.classList.add("empty");
-      card.innerHTML = `<b>${section.key}</b><small>nothing here</small>`;
+      card.title = `${section.key} — nothing here`;
       empty++;
     } else {
       try {
         const slab = await buildSlab(placements, state.maxBytes);
-        card.innerHTML =
-          `<b>${section.key}</b><small>${slab.instanceCount} tiles · ${slab.compressedBytes} bytes</small>`;
+        card.title = `${section.key} — ${slab.instanceCount} tiles · ${slab.compressedBytes} bytes`;
         card.onclick = () => takeSlab(card, slab.code);
         built++;
       } catch (error) {
         card.classList.add("empty");
-        card.innerHTML = `<b>${section.key}</b><small>${error.message}</small>`;
+        card.title = `${section.key} — ${error.message}`;
         failed++;
       }
     }
     box.appendChild(card);
   }
+
+  drawBuiltMap(drawing);
   $("build-readout").textContent =
     `${built} slab(s) ready${empty ? `, ${empty} empty` : ""}${failed ? `, ${failed} too big` : ""}` +
     (state.ts ? " — click one to take it in hand" : " — click one to copy it");
 });
+
+/** Every asset the theme can place, and the colour its label is painted in. */
+function slabColours() {
+  const colours = new Map();
+  for (const [label, held] of Object.entries(state.theme.variants || {})) {
+    const colour = COLOURS[LABEL_SYMBOL[label]];
+    if (!colour) continue;
+    for (const asset of held) colours.set(asset.id, colour);
+  }
+  return colours;
+}
+
+/**
+ * The whole build, painted the way the read map is painted.
+ *
+ * Drawn from the placements rather than from the labels, so it shows what was
+ * actually put there: which piece answered each label, where the walls landed
+ * on the boundaries between cells, and any square a label failed to fill. Every
+ * section is drawn into the one picture, in its place, because that picture is
+ * what the buttons stand on.
+ *
+ * A wall on a boundary sits half a cell off the grid, which is where it really
+ * is — so it is drawn as a bar on that line rather than as a square, exactly as
+ * the read map draws its edges.
+ */
+function drawBuiltMap(drawing) {
+  const plan = state.plan;
+  const colours = slabColours();
+  const canvas = $("slab-paint");
+  const scale = Math.max(6, Math.min(14, Math.floor(900 / plan.tilesW)));
+  canvas.width = plan.tilesW * scale;
+  canvas.height = plan.tilesH * scale;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#101014";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  $("slab-map").hidden = !drawing.length;
+
+  const drawn = new Set();
+  for (const { section, placements } of drawing) {
+    for (const placement of placements) {
+      // Placements are in their own section's terms; the picture is in the
+      // map's. A slab counts its depth upwards and a picture counts its rows
+      // down, so the row is turned back over on the way out.
+      const col = section.x0 + (placement.x - MARGIN) / UNITS_PER_TILE;
+      const row =
+        section.y0 + section.height - 1 - (placement.y - MARGIN) / UNITS_PER_TILE;
+      // Stacked wall layers are the same square over again, and the second one
+      // paints nothing the first did not.
+      const key = `${col},${row},${placement.assetId},${placement.isProp ? 1 : 0}`;
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+
+      context.fillStyle = colours.get(placement.assetId) || "#4b5563";
+      const onEdgeX = Math.abs(col - Math.round(col)) > 0.25;
+      const onEdgeY = Math.abs(row - Math.round(row)) > 0.25;
+      const bar = Math.max(1.5, scale * 0.25);
+
+      if (onEdgeX) {
+        context.fillRect((col + 0.5) * scale - bar / 2, row * scale, bar, scale);
+      } else if (onEdgeY) {
+        context.fillRect(col * scale, (row + 0.5) * scale - bar / 2, scale, bar);
+      } else if (placement.isProp) {
+        const inset = scale * 0.28;
+        context.fillRect(col * scale + inset, row * scale + inset, scale - inset * 2, scale - inset * 2);
+      } else {
+        context.fillRect(col * scale, row * scale, scale, scale);
+      }
+    }
+  }
+
+  // The seams, so it is plain which button owns which piece of map.
+  context.strokeStyle = "rgba(217,154,58,.45)";
+  context.lineWidth = 1;
+  for (const section of plan.sections) {
+    context.strokeRect(
+      section.x0 * scale + 0.5,
+      section.y0 * scale + 0.5,
+      section.width * scale - 1,
+      section.height * scale - 1
+    );
+  }
+}
 
 /**
  * What clicking a finished section does.
@@ -488,10 +573,8 @@ async function takeSlab(card, code) {
       $("drop-text").textContent = "Choose a picture, or paste one with Ctrl+V…";
       $("upload-note").textContent =
         "Choosing a file does open a dialog, but TaleSpire keeps the focus and " +
-        "the dialog opens behind the game — alt-tab to it. Two ways round that: " +
-        "copy a picture and press Ctrl+V here, or put the file in this " +
-        "Symbiote's own folder and type its name above. A Symbiote cannot read " +
-        "outside that folder.";
+        "the dialog opens behind the game — alt-tab to it. The way round that: " +
+        "copy a picture and press Ctrl+V here.";
       // Written where it can be read back: the one thing nobody can see from
       // outside the game is what its web view will and will not do.
       $("upload-diagnostics").textContent =
@@ -500,8 +583,8 @@ async function takeSlab(card, code) {
         `clipboard ${navigator.clipboard ? "yes" : "no"} · ` +
         `fetch ${typeof fetch === "function" ? "yes" : "no"}`;
       $("build-hint").textContent =
-        "Click a section to take it in hand, then place it. Sections are laid " +
-        "out in map order. Placing needs GM mode.";
+        "The map as it will be built. Click a section to take it in hand, then " +
+        "place it. Placing needs GM mode.";
 
       const { assets, packs } = await talespire.assetsFromPacks(state.ts);
       state.assets = assets;

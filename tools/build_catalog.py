@@ -84,6 +84,10 @@ def read_pack(index: Path) -> tuple[str, list[dict]]:
                     "name": raw["Name"],
                     "kind": kind,
                     "pack": pack,
+                    # The set the game files a piece under — "Sewer", "Castle
+                    # Ruins". The palette narrows by it, and without it that
+                    # filter has nothing to offer on the page.
+                    "group": raw.get("GroupTag", ""),
                     "tags": sorted(t.lower() for t in raw.get("Tags", ())),
                     "footprint": [
                         round(extent.get("x", 0.5) * 2, 2),

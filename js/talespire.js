@@ -115,11 +115,17 @@ function checked(result, what) {
  *
  * A pack index is Unity data, where y is up, while the slab format puts the
  * vertical axis on z — so the footprint comes from x and z and the height from
- * y. The bounds object's own field names are not written down anywhere, hence
- * the list: whichever one is there is used, and a whole size is halved first.
+ * y. What TaleSpire actually hands over is `{ center, width, height, depth }`,
+ * already halved: a tile the game calls 1x2 comes back as width 0.5, depth 1.
+ * The other spellings are kept because they cost a line and the bounds object's
+ * field names are written down nowhere.
  */
 function halfExtent(bounds) {
   if (!bounds) return null;
+  if (Number.isFinite(bounds.width)) {
+    const axis = (value) => (Number.isFinite(value) ? Math.abs(value) : 0.5);
+    return [axis(bounds.width), axis(bounds.depth), axis(bounds.height)];
+  }
   const half = bounds.extent ?? bounds.m_Extent ?? bounds.Extent ?? bounds.extents;
   const whole = bounds.size ?? bounds.m_Size;
   const source = half ?? whole;
@@ -131,15 +137,23 @@ function halfExtent(bounds) {
 
 const round2 = (value) => Math.round(value * 100) / 100;
 
-/** The lists of placeable things in a pack, whatever they turn out to be called. */
+/**
+ * The placeable things in a pack, whatever they turn out to be called.
+ *
+ * TaleSpire keys them by id rather than listing them, which is the whole reason
+ * the palette came up empty: a map of assets is not an array, and asking whether
+ * it was one threw every asset away.
+ */
 function placeableLists(pack) {
   const found = [];
   for (const [kind, keys] of [
     ["Tiles", ["tiles", "Tiles"]],
     ["Props", ["props", "Props"]],
   ]) {
-    const key = keys.find((name) => Array.isArray(pack[name]));
-    if (key) found.push([kind, pack[key]]);
+    const key = keys.find((name) => pack[name] && typeof pack[name] === "object");
+    if (!key) continue;
+    const held = pack[key];
+    found.push([kind, Array.isArray(held) ? held : Object.values(held)]);
   }
   return found;
 }
@@ -178,10 +192,30 @@ export async function assetsFromPacks(ts) {
     throw new Error(`TaleSpire described your packs as ${typeof packs}, not a list.`);
   }
 
+  // Only the fragments carry a name: the fuller description that follows has an
+  // empty one and no id at all. An asset knows which bundle it came out of, so
+  // that is what puts a name back on the pack it belongs to.
+  const names = new Map(
+    (Array.isArray(fragments) ? fragments : []).map((fragment, index) => [
+      fragment.id ?? index,
+      fragment.optionalName || fragment.id || `pack ${index + 1}`,
+    ])
+  );
+
   const assets = [];
-  for (const pack of packs) {
-    const packName = pack.optionalName || pack.id || "unnamed pack";
-    for (const [kind, elements] of placeableLists(pack)) {
+  packs.forEach((pack, index) => {
+    const lists = placeableLists(pack);
+    const bundleId = lists.find(([, list]) => list.length)?.[1][0]?.assets?.[0]?.bundleId;
+    const packName =
+      pack.optionalName ||
+      names.get(bundleId) ||
+      names.get([...names.keys()][index]) ||
+      pack.id ||
+      "unnamed pack";
+    // Stamped back on so anything else describing this pack sees the name too.
+    pack.optionalName = packName;
+
+    for (const [kind, elements] of lists) {
       for (const raw of elements) {
         if (raw.isDeprecated || raw.IsDeprecated) continue;
         const id = raw.id || raw.Id;
@@ -194,14 +228,19 @@ export async function assetsFromPacks(ts) {
           name,
           kind,
           pack: packName,
+          // The set the game itself files a piece under — "Abandoned Village",
+          // "Sewer". It is the only grouping in the data that matches how a
+          // person shopping for a wall would think.
+          group: raw.groupTag || raw.GroupTag || "",
           tags: (raw.tags || raw.Tags || []).map((tag) => String(tag).toLowerCase()).sort(),
           footprint: [round2(across * 2), round2(deep * 2)],
           height: round2(tall * 2),
+          icon: raw.icon || raw.Icon || null,
           element: raw,
         });
       }
     }
-  }
+  });
   if (!assets.length) {
     throw new Error(
       "TaleSpire listed your packs but no tiles or props came out of them."
@@ -210,18 +249,34 @@ export async function assetsFromPacks(ts) {
   return { assets, packs };
 }
 
-/** The game's own icon for an asset, or null where there is no game to ask. */
-export async function thumbnailFor(ts, asset, size = 64) {
-  if (!ts || !asset || !asset.element) return null;
-  try {
-    const element = await ts.contentPacks.createThumbnailElementForBoardObject(
-      asset.element,
-      size
-    );
-    return element || null;
-  } catch {
-    return null;
-  }
+/**
+ * The game's own icon for an asset, or null where there is no game to ask.
+ *
+ * TaleSpire will build this element itself, but only one asset at a time and
+ * only across the bridge into the game — a picker showing a thousand pieces
+ * would spend its life waiting on three thousand round trips. Every icon it
+ * would return is a window onto one of eight atlas images, and the pack data
+ * already says which window: so the same element is cut here, from nothing but
+ * the numbers, and the whole catalog costs eight downloads.
+ *
+ * The region is measured from the bottom of the atlas, as texture coordinates
+ * are, while CSS measures from the top — hence the flip.
+ */
+export function iconFor(asset, size = 64) {
+  const icon = asset && asset.icon;
+  if (!icon || !icon.atlas || !icon.region || !icon.region.width) return null;
+  const { atlas, region } = icon;
+  const scale = size / region.width;
+  const element = document.createElement("span");
+  element.className = "asset-icon";
+  element.style.width = `${size}px`;
+  element.style.height = `${size}px`;
+  element.style.backgroundImage = `url("${atlas.path}")`;
+  element.style.backgroundRepeat = "no-repeat";
+  element.style.backgroundSize = `${scale}px`;
+  element.style.backgroundPosition =
+    `${-region.x * scale}px ${-(1 - region.y - region.height) * scale}px`;
+  return element;
 }
 
 /** The largest slab this build of TaleSpire will take, or null if it won't say. */

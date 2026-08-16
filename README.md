@@ -16,8 +16,11 @@ machine.
    with its first square flush against the corner.
 3. **Reads the map** into floors, walls and water. Instant, free, no AI.
 4. **Picks a palette**, and lets you change any of it: every label is a card you
-   click to search the whole asset list, ranked the way the theme's own words
-   were. What you choose is remembered.
+   click to browse the whole asset list — all of it, narrowed by the set a piece
+   belongs to, by its footprint, and by tile or prop, ranked the way the theme's
+   own words were. Give a label several pieces and the map draws from all of
+   them, spread by position, so a floor stops repeating. What you choose is
+   remembered.
 5. **Builds slabs** you click to copy and paste straight into TaleSpire — or, as
    a [Symbiote](#inside-talespire), takes straight into your hand in game.
 
@@ -53,20 +56,21 @@ Five things change when it runs there:
   the pixels that are there.
 - **Getting a picture in.** The file dialog opens, but TaleSpire keeps the focus
   and it opens *behind* the game — which looks exactly like a button doing
-  nothing. Alt-tab to it, or use one of the two ways that never leave the panel:
-  copy a picture and press **Ctrl+V**, or put the file in the Symbiote's own
-  folder and type its name. A Symbiote cannot read outside that folder.
+  nothing. Alt-tab to it, or use the way that never leaves the panel: copy a
+  picture and press **Ctrl+V**.
 
 - **The asset list is yours.** Instead of the list shipped with the page, it
   reads every pack you actually own out of `TS.contentPacks`, so a slab can only
   name something you have. A tick-list appears for choosing between them, with
   sci-fi packs off to begin with.
-- **The palette shows the game's own icons.** TaleSpire will draw the icon for
-  any asset it knows, so choosing a tile is a matter of looking rather than of
-  reading names. On the web there is no art to draw and a card falls back to its
-  name.
-- **A finished section goes into your hand**, not to the clipboard. Click it and
-  place it. TaleSpire only allows that in GM mode, and says so if you are not.
+- **The palette shows the game's own icons.** Every asset carries the atlas its
+  icon is cut from, so a thousand cards cost eight downloads and choosing a tile
+  is a matter of looking rather than of reading names. On the web there is no
+  art to draw and a card falls back to its name.
+- **A finished section goes into your hand**, not to the clipboard. The built
+  map is drawn out with each section's button standing on the piece it builds,
+  so you click the part of the room you want rather than a coordinate in a list.
+  TaleSpire only allows placing in GM mode, and says so if you are not.
 
 TaleSpire cannot place tiles for you — the API deliberately has no way to write
 to a board — so the last step is still yours. What goes is the copying, the
@@ -78,12 +82,21 @@ pasting and the window switch.
 python tools/build_symbiote.py
 ```
 
-The build also writes `harness.html`, which is the same page with
+The build also writes `symbiote/harness.html`, which is the same page with
 `tools/mock_talespire.js` in front of it: a stand-in for TaleSpire that answers
-nothing until it announces `hasInitialized`, returns failures as `{cause}`, and
-draws stub icons. Serve the repo and open it to drive the Symbiote outside the
-game — which is the only place the panel can be watched while it runs. Add
-`?noevent` to withhold the initialisation event and check the fallback.
+nothing until it announces `hasInitialized`, returns failures as `{cause}`,
+keys its tiles and props by id the way the game really does, and draws stub
+icons. Serve the repo and open it to drive the Symbiote outside the game —
+which is the only place the panel can be watched while it runs. Add `?noevent`
+to withhold the initialisation event and check the fallback.
+
+It sits one level above `symbiote/DungeonSlabForge/` on purpose: everything in
+that folder is published with the Symbiote, and a page that loads a mock of the
+game is scaffolding. The folder is exactly what a player installs.
+
+`assets/` holds what the library shows before anyone installs it — the
+description and the two icons. `tools/build_icons.py` draws the icons; the build
+copies all three in.
 
 The build is not a copy. A Symbiote's files are served over
 `talespire://symbiote/`, and nothing promises that ES modules load over that

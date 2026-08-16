@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DungeonSlabForge — battlemap images into TaleSpire slabs</title>
 <meta name="description" content="Turn a battlemap image into TaleSpire slabs, in your browser. Nothing is uploaded.">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="DungeonSlabForge/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🧱</text></svg>">
 </head>
 <body>
@@ -36,18 +36,12 @@
     <span id="drop-text">Choose a battlemap, or drop one here&hellip;</span>
   </label>
   <p class="hint" id="upload-info"></p>
-  <div class="controls" id="upload-fallbacks">
-    <label>Or load a file sitting beside this Symbiote
-      <input type="text" id="image-path" placeholder="map.png" size="22">
-    </label>
-    <button id="load-path">Load it</button>
-  </div>
   <p class="hint" id="upload-note"></p>
   <p class="hint mono" id="upload-diagnostics"></p>
   <div class="controls">
     <select id="map-style">
-      <option value="lit_on_dark" selected>Lit map on dark</option>
-      <option value="transparent">Transparent background</option>
+      <option value="transparent" selected>Transparent background</option>
+      <option value="lit_on_dark">Lit map on dark</option>
       <option value="dark_on_light">Dark lines on light (rough)</option>
     </select>
     <button id="cut-background">Remove background</button>
@@ -118,7 +112,8 @@
   <p class="hint">Click any of these to change what that label is built from.
     The search runs over every asset in the packs you ticked, ranked the way the
     theme's own words were — so it starts where the automatic pick left off.
-    What you choose is remembered for next time.</p>
+    Give a label several pieces and the map draws from all of them, spread by
+    position, so a floor stops repeating. What you choose is remembered.</p>
   <div id="picker" class="picker" hidden>
     <div class="picker-head">
       <b>Choose for <span class="picker-title"></span></b>
@@ -132,8 +127,11 @@
         <option value="Tiles">Tiles only</option>
         <option value="Props">Props only</option>
       </select>
+      <select class="picker-group"></select>
+      <select class="picker-size"></select>
       <span class="readout picker-count"></span>
     </div>
+    <p class="hint">Click to add a piece, click it again to take it away.</p>
     <div class="picker-results"></div>
   </div>
 </section>
@@ -144,9 +142,12 @@
     <button id="build" class="primary">Build slabs</button>
     <span class="readout" id="build-readout"></span>
   </div>
-  <p class="hint" id="build-hint">Click a section to copy its code, then paste
-    it in TaleSpire with Ctrl+V. Sections are laid out in map order.</p>
-  <div id="sections" class="sections"></div>
+  <p class="hint" id="build-hint">The map as it will be built. Click a section
+    to copy its code, then paste it in TaleSpire with Ctrl+V.</p>
+  <div class="slab-map" id="slab-map" hidden>
+    <canvas id="slab-paint"></canvas>
+    <div id="sections" class="sections"></div>
+  </div>
 </section>
 
 </main>
@@ -161,6 +162,6 @@
 </footer>
 
 <script src="/tools/mock_talespire.js"></script>
-<script src="app.js"></script>
+<script src="DungeonSlabForge/app.js"></script>
 </body>
 </html>

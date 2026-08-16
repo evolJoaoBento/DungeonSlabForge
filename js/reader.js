@@ -41,10 +41,14 @@ function sampleImage(source, plan) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
+  // Exactly the region the cells cover, so a sample pixel and a map pixel mean
+  // the same place. Where the last cell hangs over the edge of the picture that
+  // part draws as nothing, which reads as nothing — the right answer for a
+  // square the map does not reach.
   context.drawImage(
     source,
     plan.originX, plan.originY,
-    plan.imageW - plan.originX, plan.imageH - plan.originY,
+    plan.coveredW, plan.coveredH,
     0, 0, width, height
   );
   return context.getImageData(0, 0, width, height);

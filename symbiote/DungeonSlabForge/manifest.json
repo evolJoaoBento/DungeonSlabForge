@@ -2,8 +2,13 @@
   "manifestVersion": 1,
   "name": "DungeonSlabForge",
   "entryPoint": "/index.html",
-  "version": "1.0",
+  "version": "0.1.0",
   "summary": "Turn a battlemap image into TaleSpire slabs, without leaving the game.",
+  "descriptionFilePath": "/description.md",
+  "icons": {
+    "64x64": "/icon-64.png",
+    "notification": "/icon-24.png"
+  },
   "license": "MIT",
   "about": {
     "website": "https://github.com/evolJoaoBento/DungeonSlabForge",
