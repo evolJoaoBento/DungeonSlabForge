@@ -43,8 +43,12 @@ beside your saves, not in the Steam install:
 %USERPROFILE%\AppData\LocalLow\Bouncyrock Entertainment\TaleSpire\Symbiotes\DungeonSlabForge
 ```
 
-Three things change when it runs there:
+Four things change when it runs there:
 
+- **The previews zoom.** A side panel is a few hundred pixels wide, and lining a
+  grid up against a thumbnail is guessing. Wheel to zoom, drag to pan,
+  double-click to fit. The canvas keeps its own resolution, so zooming in shows
+  the pixels that are there.
 - **Getting a picture in.** The file dialog opens, but TaleSpire keeps the focus
   and it opens *behind* the game — which looks exactly like a button doing
   nothing. Alt-tab to it, or use one of the two ways that never leave the panel:

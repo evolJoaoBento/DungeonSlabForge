@@ -100,8 +100,45 @@ button:disabled { opacity: .5; cursor: default; }
 
 .readout { color: var(--dim); font-size: 13px; }
 
-.preview { margin-top: 12px; overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 8px; }
-.preview canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
+/* A preview is a window onto a canvas that is usually bigger than it: the
+   canvas keeps its own resolution and a transform moves it about. */
+.preview {
+  position: relative;
+  margin-top: 12px;
+  overflow: hidden;
+  height: 55vh;
+  min-height: 240px;
+  max-height: 70vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+.preview.dragging { cursor: grabbing; }
+.zoom-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+.preview canvas { display: block; image-rendering: pixelated; }
+
+.zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(10, 12, 15, .82);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: default;
+}
+.zoom-controls button { padding: 2px 8px; font-size: 13px; line-height: 1.2; }
+.zoom-readout {
+  min-width: 46px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
 
 .theme-labels {
   display: grid;

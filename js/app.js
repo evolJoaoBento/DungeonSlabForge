@@ -13,6 +13,7 @@ import { place } from "./layout.js";
 import { loadThemes } from "./themes.js";
 import { buildSlab } from "./slab.js";
 import * as talespire from "./talespire.js";
+import { makeZoomable } from "./zoom.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -238,10 +239,17 @@ function refreshGrid() {
   drawReading();
 }
 
+const zoom = {
+  overlay: makeZoomable($("overlay").closest(".preview")),
+  paint: makeZoomable($("paint").closest(".preview")),
+};
+
 function drawOverlay() {
   const canvas = $("overlay");
   const plan = state.plan;
-  const scale = Math.min(1, 900 / plan.imageW);
+  // Drawn at the picture's own resolution, within reason: the preview is
+  // scaled by a transform now, so anything not drawn here cannot be zoomed to.
+  const scale = Math.min(1, 2400 / plan.imageW);
   canvas.width = Math.round(plan.imageW * scale);
   canvas.height = Math.round(plan.imageH * scale);
   const context = canvas.getContext("2d");
@@ -249,7 +257,9 @@ function drawOverlay() {
   context.drawImage(state.image, 0, 0, canvas.width, canvas.height);
 
   context.strokeStyle = "rgba(255,64,64,.75)";
-  context.lineWidth = 1;
+  // Thick enough to still be a line when the whole picture is fitted into a
+  // side panel, which is the state it is judged in first.
+  context.lineWidth = Math.max(1, canvas.width / 900);
   const spanW = plan.imageW - plan.originX;
   const spanH = plan.imageH - plan.originY;
   for (let x = 0; x <= plan.tilesW; x++) {
@@ -260,6 +270,7 @@ function drawOverlay() {
     const at = (plan.originY + (y * spanH) / plan.tilesH) * scale;
     context.beginPath(); context.moveTo(0, at); context.lineTo(canvas.width, at); context.stroke();
   }
+  zoom.overlay.refit();
 }
 
 // --- 3: the reading -----------------------------------------------------------
@@ -280,12 +291,13 @@ function drawReading() {
   const canvas = $("paint");
   const plan = state.plan;
   if (!plan) return;
-  const scale = Math.max(3, Math.min(14, Math.floor(900 / plan.tilesW)));
+  const scale = Math.max(6, Math.min(14, Math.floor(900 / plan.tilesW)));
   canvas.width = plan.tilesW * scale;
   canvas.height = plan.tilesH * scale;
   const context = canvas.getContext("2d");
   context.fillStyle = "#101014";
   context.fillRect(0, 0, canvas.width, canvas.height);
+  zoom.paint.refit();
   if (!state.reading) return;
 
   for (let y = 0; y < plan.tilesH; y++) {

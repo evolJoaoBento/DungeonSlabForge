@@ -1283,6 +1283,141 @@ __module.talespire = (function () {
   return { IS_SYMBIOTE, connect, assetsFromPacks, maxSlabBytes, sendToHand };
 })();
 
+__module.zoom = (function () {
+  /**
+   * Zoom and pan for a canvas preview.
+   *
+   * A Symbiote lives in a side panel a few hundred pixels wide. A map drawn to
+   * fit that is a thumbnail, and lining a grid up against a thumbnail is guessing
+   * — so the two previews scale and drag instead of being shrunk to fit once.
+   *
+   * The canvas keeps its own resolution and a transform does the scaling, so
+   * zooming in shows the pixels that are there rather than a resampled copy of a
+   * small one. Redrawing is left alone: it happens on every nudge of the scale
+   * slider, and a preview that jumped back to fit each time would be unusable.
+   * Hence `refit`, which only acts while nobody has zoomed by hand.
+   */
+
+  const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+
+  function makeZoomable(preview, { min = 0.05, max = 24 } = {}) {
+    const canvas = preview.querySelector("canvas");
+    if (!canvas) throw new Error("A zoomable preview needs a canvas in it.");
+
+    const stage = document.createElement("div");
+    stage.className = "zoom-stage";
+    preview.insertBefore(stage, canvas);
+    stage.appendChild(canvas);
+
+    let scale = 1;
+    let x = 0;
+    let y = 0;
+    let touched = false;
+
+    function apply() {
+      stage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+      readout.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    /** Sit the whole picture in the middle of the box. */
+    function fit() {
+      const box = preview.getBoundingClientRect();
+      if (!box.width || !box.height || !canvas.width || !canvas.height) return;
+      scale = clamp(Math.min(box.width / canvas.width, box.height / canvas.height), min, max);
+      x = (box.width - canvas.width * scale) / 2;
+      y = (box.height - canvas.height * scale) / 2;
+      touched = false;
+      apply();
+    }
+
+    /** Fit again after a redraw, unless the view is one somebody chose. */
+    function refit() {
+      if (!touched) fit();
+    }
+
+    function zoomAbout(clientX, clientY, factor) {
+      const box = preview.getBoundingClientRect();
+      const atX = clientX - box.left;
+      const atY = clientY - box.top;
+      const next = clamp(scale * factor, min, max);
+      if (next === scale) return;
+      // Keep whatever is under the pointer under the pointer.
+      x = atX - (atX - x) * (next / scale);
+      y = atY - (atY - y) * (next / scale);
+      scale = next;
+      touched = true;
+      apply();
+    }
+
+    preview.addEventListener(
+      "wheel",
+      (event) => {
+        event.preventDefault();
+        zoomAbout(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0015));
+      },
+      { passive: false }
+    );
+
+    let dragging = null;
+    preview.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest(".zoom-controls")) return;
+      dragging = { atX: event.clientX - x, atY: event.clientY - y };
+      preview.setPointerCapture(event.pointerId);
+      preview.classList.add("dragging");
+    });
+    preview.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      x = event.clientX - dragging.atX;
+      y = event.clientY - dragging.atY;
+      touched = true;
+      apply();
+    });
+    for (const name of ["pointerup", "pointercancel", "pointerleave"]) {
+      preview.addEventListener(name, () => {
+        dragging = null;
+        preview.classList.remove("dragging");
+      });
+    }
+    preview.addEventListener("dblclick", fit);
+
+    const controls = document.createElement("div");
+    controls.className = "zoom-controls";
+    const readout = document.createElement("span");
+    readout.className = "zoom-readout";
+
+    const button = (text, title, act) => {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.textContent = text;
+      element.title = title;
+      element.onclick = act;
+      return element;
+    };
+    const middle = () => {
+      const box = preview.getBoundingClientRect();
+      return [box.left + box.width / 2, box.top + box.height / 2];
+    };
+    controls.append(
+      button("−", "Zoom out", () => zoomAbout(...middle(), 1 / 1.4)),
+      readout,
+      button("+", "Zoom in", () => zoomAbout(...middle(), 1.4)),
+      button("⤢", "Fit (or double-click)", fit)
+    );
+    preview.appendChild(controls);
+
+    // The canvas is resized whenever it is redrawn, and that is the moment a fit
+    // is worth redoing.
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(refit).observe(canvas);
+    }
+
+    apply();
+    return { fit, refit };
+  }
+
+  return { makeZoomable };
+})();
+
 __module.background = (function () {
   /**
    * Cutting the map out of whatever it was drawn on.
@@ -1433,6 +1568,7 @@ __module.background = (function () {
   const { loadThemes } = __module.themes;
   const { buildSlab } = __module.slab;
   const talespire = __module.talespire;
+  const { makeZoomable } = __module.zoom;
 
   const $ = (id) => document.getElementById(id);
 
@@ -1658,10 +1794,17 @@ __module.background = (function () {
     drawReading();
   }
 
+  const zoom = {
+    overlay: makeZoomable($("overlay").closest(".preview")),
+    paint: makeZoomable($("paint").closest(".preview")),
+  };
+
   function drawOverlay() {
     const canvas = $("overlay");
     const plan = state.plan;
-    const scale = Math.min(1, 900 / plan.imageW);
+    // Drawn at the picture's own resolution, within reason: the preview is
+    // scaled by a transform now, so anything not drawn here cannot be zoomed to.
+    const scale = Math.min(1, 2400 / plan.imageW);
     canvas.width = Math.round(plan.imageW * scale);
     canvas.height = Math.round(plan.imageH * scale);
     const context = canvas.getContext("2d");
@@ -1669,7 +1812,9 @@ __module.background = (function () {
     context.drawImage(state.image, 0, 0, canvas.width, canvas.height);
 
     context.strokeStyle = "rgba(255,64,64,.75)";
-    context.lineWidth = 1;
+    // Thick enough to still be a line when the whole picture is fitted into a
+    // side panel, which is the state it is judged in first.
+    context.lineWidth = Math.max(1, canvas.width / 900);
     const spanW = plan.imageW - plan.originX;
     const spanH = plan.imageH - plan.originY;
     for (let x = 0; x <= plan.tilesW; x++) {
@@ -1680,6 +1825,7 @@ __module.background = (function () {
       const at = (plan.originY + (y * spanH) / plan.tilesH) * scale;
       context.beginPath(); context.moveTo(0, at); context.lineTo(canvas.width, at); context.stroke();
     }
+    zoom.overlay.refit();
   }
 
   // --- 3: the reading -----------------------------------------------------------
@@ -1700,12 +1846,13 @@ __module.background = (function () {
     const canvas = $("paint");
     const plan = state.plan;
     if (!plan) return;
-    const scale = Math.max(3, Math.min(14, Math.floor(900 / plan.tilesW)));
+    const scale = Math.max(6, Math.min(14, Math.floor(900 / plan.tilesW)));
     canvas.width = plan.tilesW * scale;
     canvas.height = plan.tilesH * scale;
     const context = canvas.getContext("2d");
     context.fillStyle = "#101014";
     context.fillRect(0, 0, canvas.width, canvas.height);
+    zoom.paint.refit();
     if (!state.reading) return;
 
     for (let y = 0; y < plan.tilesH; y++) {
