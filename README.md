@@ -16,7 +16,8 @@ machine.
    with its first square flush against the corner.
 3. **Reads the map** into floors, walls and water. Instant, free, no AI.
 4. **Picks a palette**, with a swap for every label.
-5. **Builds slabs** you click to copy and paste straight into TaleSpire.
+5. **Builds slabs** you click to copy and paste straight into TaleSpire — or, as
+   a [Symbiote](#inside-talespire), takes straight into your hand in game.
 
 The asset list ships with the page — 2025 fantasy assets, 90 KB compressed —
 so there is nothing to set up first. It is the Medieval Fantasy pack only: a
@@ -29,6 +30,43 @@ update, and `--skip <pack>` is how a pack is left out:
 ```sh
 python tools/build_catalog.py --skip cyberpunk_and_sci-fi
 ```
+
+## Inside TaleSpire
+
+The same thing runs as a Symbiote, in a panel in the game, so a map goes from
+picture to placed without alt-tabbing.
+
+Copy `symbiote/DungeonSlabForge` into TaleSpire's `Symbiotes` directory:
+
+```
+C:\Program Files (x86)\Steam\steamapps\common\TaleSpire\Symbiotes\DungeonSlabForge
+```
+
+Two things change when it runs there:
+
+- **The asset list is yours.** Instead of the list shipped with the page, it
+  reads every pack you actually own out of `TS.contentPacks`, so a slab can only
+  name something you have. A tick-list appears for choosing between them, with
+  sci-fi packs off to begin with.
+- **A finished section goes into your hand**, not to the clipboard. Click it and
+  place it. TaleSpire only allows that in GM mode, and says so if you are not.
+
+TaleSpire cannot place tiles for you — the API deliberately has no way to write
+to a board — so the last step is still yours. What goes is the copying, the
+pasting and the window switch.
+
+`symbiote/` is generated. Edit `js/` and rebuild:
+
+```sh
+python tools/build_symbiote.py
+```
+
+The build is not a copy. A Symbiote's files are served over
+`talespire://symbiote/`, and nothing promises that ES modules load over that
+scheme or that fetching a file next to the page works — so every module is
+folded into one classic script and the theme data is written into it. Nothing is
+fetched at startup. The upshot is that the build opens straight off disk over
+`file://`, which forbids both, and that is how it is checked.
 
 ## How it reads a map
 
