@@ -14,6 +14,7 @@ import { loadThemes } from "./themes.js";
 import { buildSlab } from "./slab.js";
 import * as talespire from "./talespire.js";
 import { makeZoomable } from "./zoom.js";
+import { makePalette } from "./palette.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -386,35 +387,32 @@ function fillThemes() {
   select.onchange = applyTheme;
 }
 
+let palette = null;
+
+function thePalette() {
+  if (palette) return palette;
+  palette = makePalette({
+    into: $("theme-labels"),
+    picker: $("picker"),
+    thumbnail: (asset) => talespire.thumbnailFor(state.ts, asset),
+    onChange: (theme, saved) => {
+      state.saved = saved;
+      // A null theme is the "automatic" button: the remembered choice is gone,
+      // so the answer is whatever resolving it afresh gives.
+      if (theme) state.theme = theme;
+      else applyTheme();
+      talespire.save(state.ts, saved).catch(() => {});
+    },
+  });
+  return palette;
+}
+
 function applyTheme() {
-  state.theme = state.themes[$("theme").value];
-  $("theme-readout").textContent = state.theme.warnings.length
-    ? `${state.theme.warnings.length} label(s) did not resolve`
+  const resolved = state.themes[$("theme").value];
+  $("theme-readout").textContent = resolved.warnings.length
+    ? `${resolved.warnings.length} label(s) did not resolve`
     : "every label resolved";
-
-  const box = $("theme-labels");
-  box.innerHTML = "";
-  for (const [label, asset] of Object.entries(state.theme.assets)) {
-    const row = document.createElement("div");
-    row.className = "row";
-    const title = document.createElement("b");
-    title.textContent = label;
-    row.appendChild(title);
-
-    const select = document.createElement("select");
-    const options = state.theme.alternativesFor(label);
-    const shown = options.length ? options : [asset];
-    for (const option of shown.slice(0, 400)) {
-      const el = document.createElement("option");
-      el.value = option.id;
-      el.textContent = option.name;
-      el.selected = option.id === asset.id;
-      select.appendChild(el);
-    }
-    select.onchange = () => { state.theme = state.theme.withOverride(label, select.value); };
-    row.appendChild(select);
-    box.appendChild(row);
-  }
+  state.theme = thePalette().show(resolved, state.saved);
 }
 
 // --- 5: the slabs -------------------------------------------------------------
@@ -484,8 +482,8 @@ async function takeSlab(card, code) {
 
     state.ts = await talespire.connect();
     if (state.ts) {
-      state.assets = await talespire.assetsFromPacks(state.ts);
-      state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
+      // Said before the asset list is read, so the panel still behaves like a
+      // panel if reading it goes wrong.
       document.body.classList.add("in-talespire");
       $("drop-text").textContent = "Choose a picture, or paste one with Ctrl+V…";
       $("upload-note").textContent =
@@ -504,16 +502,31 @@ async function takeSlab(card, code) {
       $("build-hint").textContent =
         "Click a section to take it in hand, then place it. Sections are laid " +
         "out in map order. Placing needs GM mode.";
+
+      const { assets, packs } = await talespire.assetsFromPacks(state.ts);
+      state.assets = assets;
+      state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
+      // Kept whether or not anything went wrong: it is the only view from
+      // outside the game of what the game actually said.
+      $("pack-dump").textContent = talespire.describePacks(packs);
+      $("what-talespire-said").hidden = false;
     } else {
       state.assets = (await Catalog.load()).assets;
     }
 
+    state.saved = await talespire.loadSaved(state.ts);
     state.specs = state.specs || (await (await fetch("./js/themes.json")).json());
     fillPacks();
     await usePacks();
   } catch (error) {
-    // Without a catalog nothing can be built, so say so where it will be read
-    // rather than failing quietly at the last step.
-    $("upload-info").textContent = error.message;
+    // Nothing can be built without a catalog, and the last time this failed the
+    // message sat in step one where nobody looked. It goes at the top now.
+    say(error.message);
   }
 })();
+
+function say(message) {
+  const banner = $("banner");
+  banner.textContent = message;
+  banner.hidden = false;
+}

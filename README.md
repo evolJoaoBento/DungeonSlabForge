@@ -15,7 +15,9 @@ machine.
 2. **Finds the scale**, including where the grid starts — not every map is drawn
    with its first square flush against the corner.
 3. **Reads the map** into floors, walls and water. Instant, free, no AI.
-4. **Picks a palette**, with a swap for every label.
+4. **Picks a palette**, and lets you change any of it: every label is a card you
+   click to search the whole asset list, ranked the way the theme's own words
+   were. What you choose is remembered.
 5. **Builds slabs** you click to copy and paste straight into TaleSpire — or, as
    a [Symbiote](#inside-talespire), takes straight into your hand in game.
 
@@ -43,7 +45,7 @@ beside your saves, not in the Steam install:
 %USERPROFILE%\AppData\LocalLow\Bouncyrock Entertainment\TaleSpire\Symbiotes\DungeonSlabForge
 ```
 
-Four things change when it runs there:
+Five things change when it runs there:
 
 - **The previews zoom.** A side panel is a few hundred pixels wide, and lining a
   grid up against a thumbnail is guessing. Wheel to zoom, drag to pan,
@@ -59,6 +61,10 @@ Four things change when it runs there:
   reads every pack you actually own out of `TS.contentPacks`, so a slab can only
   name something you have. A tick-list appears for choosing between them, with
   sci-fi packs off to begin with.
+- **The palette shows the game's own icons.** TaleSpire will draw the icon for
+  any asset it knows, so choosing a tile is a matter of looking rather than of
+  reading names. On the web there is no art to draw and a card falls back to its
+  name.
 - **A finished section goes into your hand**, not to the clipboard. Click it and
   place it. TaleSpire only allows that in GM mode, and says so if you are not.
 
@@ -71,6 +77,13 @@ pasting and the window switch.
 ```sh
 python tools/build_symbiote.py
 ```
+
+The build also writes `harness.html`, which is the same page with
+`tools/mock_talespire.js` in front of it: a stand-in for TaleSpire that answers
+nothing until it announces `hasInitialized`, returns failures as `{cause}`, and
+draws stub icons. Serve the repo and open it to drive the Symbiote outside the
+game — which is the only place the panel can be watched while it runs. Add
+`?noevent` to withhold the initialisation event and check the fallback.
 
 The build is not a copy. A Symbiote's files are served over
 `talespire://symbiote/`, and nothing promises that ES modules load over that

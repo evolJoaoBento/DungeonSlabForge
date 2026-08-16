@@ -50,6 +50,25 @@ export class Catalog {
     return [...new Set(this.assets.map((asset) => asset.pack))];
   }
 
+  /**
+   * Assets matching some typed words, best first.
+   *
+   * The same ranking the themes resolve by, exposed for a person to drive: the
+   * top of this list is what a theme written with those words would have
+   * picked, so choosing by hand starts where choosing by rule left off.
+   */
+  search(text, { kind = null, limit = 200 } = {}) {
+    const wanted = words(text || "");
+    const pool = kind ? this.assets.filter((asset) => asset.kind === kind) : this.assets;
+    if (!wanted.size) return pool.slice(0, limit);
+    return pool
+      .map((asset) => ({ asset, score: searchScore(asset, wanted) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score || comparePlainness(a.asset, b.asset, wanted))
+      .slice(0, limit)
+      .map((entry) => entry.asset);
+  }
+
   query({ name = null, kind = null, footprint = null } = {}) {
     const wantedName = name ? name.toLowerCase() : null;
     return this.assets.filter((asset) => {

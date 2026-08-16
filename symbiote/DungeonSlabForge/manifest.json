@@ -12,7 +12,13 @@
     ]
   },
   "api": {
-    "version": "0.1"
+    "version": "0.1",
+    "initTimeout": 30,
+    "subscriptions": {
+      "symbiote": {
+        "onStateChangeEvent": "onSymbioteStateChange"
+      }
+    }
   },
   "environment": {
     "webViewBackgroundColor": "#0b0c0f",

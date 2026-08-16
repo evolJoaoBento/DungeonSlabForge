@@ -41,7 +41,15 @@ MANIFEST = {
         "website": "https://github.com/evolJoaoBento/DungeonSlabForge",
         "authors": ["João Bento"],
     },
-    "api": {"version": "0.1"},
+    # TS existing is not the same as TS being callable: the connection to the
+    # game is announced by a hasInitialized event, and the event only arrives
+    # if the manifest subscribes to it. Without this the asset list comes back
+    # empty and the palette has nothing in it.
+    "api": {
+        "version": "0.1",
+        "initTimeout": 30,
+        "subscriptions": {"symbiote": {"onStateChangeEvent": "onSymbioteStateChange"}},
+    },
     "environment": {
         "webViewBackgroundColor": "#0b0c0f",
         # A link would otherwise replace the app with whatever it points at.
@@ -226,6 +234,18 @@ def page() -> str:
     return html
 
 
+def harness(html: str) -> str:
+    """The built page with a stand-in for TaleSpire in front of it.
+
+    Written beside the real one so the Symbiote can be driven in a browser: the
+    game is the one place this code cannot be watched while it runs.
+    """
+    return html.replace(
+        '<script src="app.js"></script>',
+        '<script src="/tools/mock_talespire.js"></script>\n<script src="app.js"></script>',
+    )
+
+
 def main() -> None:
     for module in order_modules(ENTRY):
         source = read(module)
@@ -237,8 +257,10 @@ def main() -> None:
     OUT.mkdir(parents=True)
 
     script = bundle()
+    html = page()
     (OUT / "app.js").write_text(script, encoding="utf-8")
-    (OUT / "index.html").write_text(page(), encoding="utf-8")
+    (OUT / "index.html").write_text(html, encoding="utf-8")
+    (OUT / "harness.html").write_text(harness(html), encoding="utf-8")
     shutil.copy(ROOT / "css" / "style.css", OUT / "style.css")
     (OUT / "manifest.json").write_text(
         json.dumps(MANIFEST, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -247,6 +269,7 @@ def main() -> None:
     print(f"wrote {OUT}")
     print(f"  app.js      {len(script) / 1024:.0f} KB, {len(order_modules(ENTRY))} modules")
     print("  index.html, style.css, manifest.json")
+    print("  harness.html — the same page with a stand-in for TaleSpire")
 
 
 if __name__ == "__main__":

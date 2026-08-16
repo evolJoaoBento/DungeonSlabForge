@@ -23,6 +23,12 @@
 
 <main>
 
+<p class="banner" id="banner" hidden></p>
+<details id="what-talespire-said" hidden>
+  <summary>What TaleSpire said about your packs</summary>
+  <pre class="mono" id="pack-dump"></pre>
+</details>
+
 <section class="step" id="step-upload">
   <h2><span class="num">1</span> Map image</h2>
   <label class="drop" for="file">
@@ -109,6 +115,27 @@
       theme.</p>
   </details>
   <div id="theme-labels" class="theme-labels"></div>
+  <p class="hint">Click any of these to change what that label is built from.
+    The search runs over every asset in the packs you ticked, ranked the way the
+    theme's own words were — so it starts where the automatic pick left off.
+    What you choose is remembered for next time.</p>
+  <div id="picker" class="picker" hidden>
+    <div class="picker-head">
+      <b>Choose for <span class="picker-title"></span></b>
+      <button class="picker-reset" type="button">Automatic</button>
+      <button class="picker-close" type="button">Done</button>
+    </div>
+    <div class="controls">
+      <input class="picker-search" type="search" placeholder="Search every asset…">
+      <select class="picker-kind">
+        <option value="">Tiles and props</option>
+        <option value="Tiles">Tiles only</option>
+        <option value="Props">Props only</option>
+      </select>
+      <span class="readout picker-count"></span>
+    </div>
+    <div class="picker-results"></div>
+  </div>
 </section>
 
 <section class="step" id="step-build" hidden>

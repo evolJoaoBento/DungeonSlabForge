@@ -61,6 +61,25 @@ __module.catalog = (function () {
       return [...new Set(this.assets.map((asset) => asset.pack))];
     }
 
+    /**
+     * Assets matching some typed words, best first.
+     *
+     * The same ranking the themes resolve by, exposed for a person to drive: the
+     * top of this list is what a theme written with those words would have
+     * picked, so choosing by hand starts where choosing by rule left off.
+     */
+    search(text, { kind = null, limit = 200 } = {}) {
+      const wanted = words(text || "");
+      const pool = kind ? this.assets.filter((asset) => asset.kind === kind) : this.assets;
+      if (!wanted.size) return pool.slice(0, limit);
+      return pool
+        .map((asset) => ({ asset, score: searchScore(asset, wanted) }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score || comparePlainness(a.asset, b.asset, wanted))
+        .slice(0, limit)
+        .map((entry) => entry.asset);
+    }
+
     query({ name = null, kind = null, footprint = null } = {}) {
       const wantedName = name ? name.toLowerCase() : null;
       return this.assets.filter((asset) => {
@@ -1144,17 +1163,24 @@ __module.talespire = (function () {
    * Running inside TaleSpire.
    *
    * The same code is a web page and a Symbiote. This file is the whole of the
-   * difference: where the asset list comes from, and what a finished slab does
-   * when you click it.
+   * difference: where the asset list comes from, what a finished slab does when
+   * you click it, and where a palette is remembered.
    *
    * On the page the catalog is a file shipped alongside, frozen at whatever was
    * installed when it was generated. Inside the game there is no need to guess —
    * TaleSpire will hand over every pack the player actually owns, so the catalog
    * is built from their own install and a slab can only ever name an asset they
-   * have.
+   * have. It will also draw the icon for any of them, which is what makes
+   * choosing a tile a matter of looking rather than of reading names.
    *
-   * The API answers failures by returning an object with a ``cause`` rather than
-   * by throwing, so every call has to be looked at, not just awaited.
+   * Two things about the API are easy to get wrong, and both were:
+   *
+   *   - `TS` existing does not mean it can be called. The connection to the game
+   *     is started separately and announced by a `hasInitialized` event, which
+   *     only arrives if the manifest asks for it. Calling before that answers
+   *     with nothing.
+   *   - Failures come back as an object with a `cause` rather than as a throw,
+   *     so every call has to be looked at, not just awaited.
    */
 
   /** Set by the Symbiote build. Absent on the web, so nothing here ever waits. */
@@ -1171,28 +1197,75 @@ __module.talespire = (function () {
   };
 
   /**
-   * Wait for the API to be injected.
+   * The initialisation handshake.
    *
-   * A Symbiote's scripts can run before TaleSpire finishes setting `TS` up, and
-   * there is no event for it, so this polls. On the web it returns nothing at
-   * once: the flag the build writes is the only thing that says to wait at all,
-   * which beats sniffing the user agent for a browser nobody else ships.
+   * The manifest names `onSymbioteStateChange` as the handler for the Symbiote's
+   * state events, and TaleSpire looks it up as a global by that name — so it is
+   * assigned here rather than exported. This runs while the bundle is still being
+   * evaluated, long before any event can be dispatched, so nothing is missed.
    */
-  async function connect(timeoutMs = 10000) {
+  let announceReady;
+  const initialised = new Promise((resolve) => {
+    announceReady = resolve;
+  });
+  globalThis.onSymbioteStateChange = function onSymbioteStateChange(message) {
+    if (message && message.kind === "hasInitialized") announceReady("event");
+  };
+
+  /** True once a call actually answers, whatever the handshake did. */
+  async function answersCalls(ts) {
+    try {
+      const who = await ts.clients.whoAmI();
+      return !(who && who.cause !== undefined);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Wait for the API to be usable.
+   *
+   * Belt and braces: the announced event is the documented way, and probing with
+   * a harmless call covers a manifest whose subscription did not take. Whichever
+   * happens first wins.
+   */
+  async function connect(timeoutMs = 25000) {
     if (!IS_SYMBIOTE) return null;
     const deadline = Date.now() + timeoutMs;
+    let ts = null;
     for (;;) {
-      const ts = globalThis.TS;
-      if (ts && ts.contentPacks && ts.slabs) return ts;
+      ts = globalThis.TS || globalThis.TaleSpire || null;
+      if (ts && ts.contentPacks && ts.slabs) break;
       if (Date.now() > deadline) {
-        throw new Error("TaleSpire's API never appeared. Is this Symbiote up to date?");
+        throw new Error(
+          "TaleSpire never injected its API. Check the Symbiote's manifest.json " +
+            "still asks for api.version 0.1."
+        );
       }
       await new Promise((resume) => setTimeout(resume, 100));
+    }
+
+    for (;;) {
+      const settled = await Promise.race([
+        initialised,
+        new Promise((resume) => setTimeout(() => resume(null), 250)),
+      ]);
+      if (settled) return ts;
+      if (await answersCalls(ts)) return ts;
+      if (Date.now() > deadline) {
+        throw new Error(
+          "TaleSpire's API never finished connecting. It answers no calls, and " +
+            "no hasInitialized event arrived."
+        );
+      }
     }
   }
 
   function checked(result, what) {
-    if (result && result.cause !== undefined) {
+    if (result === undefined || result === null) {
+      throw new Error(`TaleSpire returned nothing when asked to ${what}.`);
+    }
+    if (result.cause !== undefined) {
       throw new Error(`TaleSpire refused to ${what}: ${result.cause}`);
     }
     return result;
@@ -1204,14 +1277,14 @@ __module.talespire = (function () {
    * A pack index is Unity data, where y is up, while the slab format puts the
    * vertical axis on z — so the footprint comes from x and z and the height from
    * y. The bounds object's own field names are not written down anywhere, hence
-   * the list: whichever one is there is used, and `size` is a whole extent rather
-   * than a half one, so it is not doubled.
+   * the list: whichever one is there is used, and a whole size is halved first.
    */
   function halfExtent(bounds) {
-    const half = bounds?.extent ?? bounds?.m_Extent ?? bounds?.Extent ?? bounds?.extents;
-    const whole = bounds?.size ?? bounds?.m_Size;
+    if (!bounds) return null;
+    const half = bounds.extent ?? bounds.m_Extent ?? bounds.Extent ?? bounds.extents;
+    const whole = bounds.size ?? bounds.m_Size;
     const source = half ?? whole;
-    if (!source) return null;
+    if (!source || typeof source !== "object") return null;
     const scale = half ? 1 : 0.5;
     const axis = (value) => (Number.isFinite(value) ? Math.abs(value) * scale : 0.5);
     return [axis(source.x), axis(source.z), axis(source.y)];
@@ -1219,47 +1292,97 @@ __module.talespire = (function () {
 
   const round2 = (value) => Math.round(value * 100) / 100;
 
+  /** The lists of placeable things in a pack, whatever they turn out to be called. */
+  function placeableLists(pack) {
+    const found = [];
+    for (const [kind, keys] of [
+      ["Tiles", ["tiles", "Tiles"]],
+      ["Props", ["props", "Props"]],
+    ]) {
+      const key = keys.find((name) => Array.isArray(pack[name]));
+      if (key) found.push([kind, pack[key]]);
+    }
+    return found;
+  }
+
+  /** Everything the packs said, in a form that can be read back out of the panel. */
+  function describePacks(packs) {
+    const lines = [`${packs.length} pack(s)`];
+    let sample = null;
+    for (const pack of packs) {
+      const lists = placeableLists(pack);
+      const counts = lists.map(([kind, list]) => `${kind.toLowerCase()} ${list.length}`);
+      lines.push(
+        `· ${pack.optionalName || pack.id || "(unnamed)"}: ` +
+          (counts.length ? counts.join(", ") : `no tile or prop list — keys: ${Object.keys(pack).join(", ")}`)
+      );
+      if (!sample) sample = lists.find(([, list]) => list.length)?.[1][0] ?? null;
+    }
+    if (sample) {
+      lines.push(`first entry: ${JSON.stringify(sample).slice(0, 600)}`);
+    }
+    return lines.join("\n");
+  }
+
   /**
    * Every tile and prop in every pack the player owns, in catalog shape.
    *
    * Deprecated pieces are left out for the same reason the generator leaves them
    * out: they still resolve, and building a map from them is building it from
-   * things TaleSpire has already replaced.
+   * things TaleSpire has already replaced. The raw entry is carried along, since
+   * it is what the game wants back to draw an icon.
    */
   async function assetsFromPacks(ts) {
     const fragments = checked(await ts.contentPacks.getContentPacks(), "list your packs");
     const packs = checked(await ts.contentPacks.getMoreInfo(fragments), "read your packs");
+    if (!Array.isArray(packs)) {
+      throw new Error(`TaleSpire described your packs as ${typeof packs}, not a list.`);
+    }
 
     const assets = [];
-    let reported = false;
     for (const pack of packs) {
-      const packName = pack.optionalName || pack.id;
-      for (const [kind, elements] of [["Tiles", pack.tiles], ["Props", pack.props]]) {
-        for (const raw of elements || []) {
-          if (raw.isDeprecated) continue;
-          const extent = halfExtent(raw.colliderBoundsBound);
-          if (!extent && !reported) {
-            // One line, once: if the bounds are shaped differently to what is
-            // read here, this is what says so instead of every tile silently
-            // becoming a one by one cube.
-            reported = true;
-            console.warn("Unfamiliar collider bounds", raw.colliderBoundsBound);
-          }
-          const [across, deep, tall] = extent || [0.5, 0.5, 0.5];
+      const packName = pack.optionalName || pack.id || "unnamed pack";
+      for (const [kind, elements] of placeableLists(pack)) {
+        for (const raw of elements) {
+          if (raw.isDeprecated || raw.IsDeprecated) continue;
+          const id = raw.id || raw.Id;
+          const name = raw.name || raw.Name;
+          if (!id || !name) continue;
+          const [across, deep, tall] =
+            halfExtent(raw.colliderBoundsBound || raw.ColliderBoundsBound) || [0.5, 0.5, 0.5];
           assets.push({
-            id: raw.id,
-            name: raw.name,
+            id,
+            name,
             kind,
             pack: packName,
-            tags: (raw.tags || []).map((tag) => tag.toLowerCase()).sort(),
+            tags: (raw.tags || raw.Tags || []).map((tag) => String(tag).toLowerCase()).sort(),
             footprint: [round2(across * 2), round2(deep * 2)],
             height: round2(tall * 2),
+            element: raw,
           });
         }
       }
     }
-    if (!assets.length) throw new Error("TaleSpire reported no tiles or props.");
-    return assets;
+    if (!assets.length) {
+      throw new Error(
+        "TaleSpire listed your packs but no tiles or props came out of them."
+      );
+    }
+    return { assets, packs };
+  }
+
+  /** The game's own icon for an asset, or null where there is no game to ask. */
+  async function thumbnailFor(ts, asset, size = 64) {
+    if (!ts || !asset || !asset.element) return null;
+    try {
+      const element = await ts.contentPacks.createThumbnailElementForBoardObject(
+        asset.element,
+        size
+      );
+      return element || null;
+    } catch {
+      return null;
+    }
   }
 
   /** The largest slab this build of TaleSpire will take, or null if it won't say. */
@@ -1280,7 +1403,34 @@ __module.talespire = (function () {
     }
   }
 
-  return { IS_SYMBIOTE, connect, assetsFromPacks, maxSlabBytes, sendToHand };
+  /**
+   * Where a saved palette lives.
+   *
+   * TaleSpire gives a Symbiote a blob of its own; a browser has localStorage.
+   * Either way it is one string, so the same code writes both.
+   */
+  const STORE_KEY = "dungeonslabforge:palettes";
+
+  async function loadSaved(ts) {
+    try {
+      const text = ts
+        ? await ts.localStorage.global.getBlob()
+        : globalThis.localStorage?.getItem(STORE_KEY);
+      if (!text || typeof text !== "string") return {};
+      const saved = JSON.parse(text);
+      return saved && typeof saved === "object" ? saved : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async function save(ts, saved) {
+    const text = JSON.stringify(saved);
+    if (ts) await ts.localStorage.global.setBlob(text);
+    else globalThis.localStorage?.setItem(STORE_KEY, text);
+  }
+
+  return { IS_SYMBIOTE, connect, describePacks, assetsFromPacks, thumbnailFor, maxSlabBytes, sendToHand, loadSaved, save };
 })();
 
 __module.zoom = (function () {
@@ -1416,6 +1566,180 @@ __module.zoom = (function () {
   }
 
   return { makeZoomable };
+})();
+
+__module.palette = (function () {
+  /**
+   * Choosing what each label is built from.
+   *
+   * A theme names its tiles in words — "stone dungeon tile" — and the catalog
+   * ranks a few thousand assets against that. It is a good first guess and a poor
+   * last word: the ranking cannot know that this dungeon wants flagstones, and a
+   * name in a list tells nobody what a piece looks like.
+   *
+   * So the picks are shown as a grid of the game's own icons, and changing one
+   * opens a search over every asset in the packs, ranked the same way the theme
+   * was. Inside TaleSpire the icons are real; on the web there is no art to draw,
+   * so a card falls back to its name and footprint.
+   *
+   * A choice made here is remembered per theme, because a palette worth building
+   * by hand is worth having again on the next map.
+   */
+
+  const SHOWN = 120;
+
+  function makePalette({ into, picker, onChange, thumbnail }) {
+    let theme = null;
+    let saved = {};
+    let openLabel = null;
+
+    const $ = (selector) => picker.querySelector(selector);
+    const searchBox = $(".picker-search");
+    const kindBox = $(".picker-kind");
+    const results = $(".picker-results");
+    const title = $(".picker-title");
+    const count = $(".picker-count");
+
+    /** An asset as a card: the game's icon if there is one, its name if not. */
+    function card(asset, { chosen = false, onPick = null } = {}) {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = `asset-card${chosen ? " chosen" : ""}`;
+      element.title = `${asset.name} — ${asset.footprint[0]}×${asset.footprint[1]}, ${asset.pack}`;
+
+      const art = document.createElement("span");
+      art.className = "asset-art";
+      element.appendChild(art);
+
+      const name = document.createElement("span");
+      name.className = "asset-name";
+      name.textContent = asset.name;
+      element.appendChild(name);
+
+      if (onPick) element.onclick = () => onPick(asset);
+
+      // The icon arrives later, and a card that never gets one keeps its initial.
+      art.textContent = asset.name.slice(0, 1).toUpperCase();
+      Promise.resolve(thumbnail(asset)).then((node) => {
+        if (!node) return;
+        art.textContent = "";
+        art.appendChild(node);
+      });
+      return element;
+    }
+
+    function draw() {
+      into.replaceChildren();
+      if (!theme) return;
+      for (const [label, asset] of Object.entries(theme.assets)) {
+        const row = document.createElement("div");
+        row.className = `label-slot${openLabel === label ? " open" : ""}`;
+
+        const heading = document.createElement("b");
+        heading.textContent = label;
+        row.appendChild(heading);
+        row.appendChild(card(asset, { onPick: () => open(label) }));
+
+        into.appendChild(row);
+      }
+    }
+
+    function open(label) {
+      openLabel = label;
+      title.textContent = label;
+      // Seeded with the words the theme itself asked for. Its own shortlist is a
+      // filter, not a ranking — for a label pinned to one name that is a picker
+      // with one thing in it — whereas the same words put through the ranking are
+      // the hundred pieces the automatic pick chose between, best first. Showing
+      // them in the box also says plainly what the theme asked for.
+      const query = theme.queries[label] || {};
+      searchBox.value = query.search || query.name || label.replace(/_/g, " ");
+      kindBox.value = query.kind || "";
+      picker.hidden = false;
+      fill();
+      draw();
+      searchBox.focus();
+      picker.scrollIntoView({ block: "nearest" });
+    }
+
+    function close() {
+      openLabel = null;
+      picker.hidden = true;
+      draw();
+    }
+
+    /** What the search shows: the whole catalog, ranked, always. */
+    function fill() {
+      if (!openLabel || !theme) return;
+      const typed = searchBox.value.trim();
+      const kind = kindBox.value || null;
+      let found = theme.catalog.search(typed, { kind, limit: SHOWN });
+      if (!found.length) {
+        // Words that match nothing would otherwise leave an empty box with no
+        // way back to the pieces this label could actually use.
+        found = theme.alternativesFor(openLabel).filter((a) => !kind || a.kind === kind);
+      }
+
+      const total = found.length;
+      found = found.slice(0, SHOWN);
+      count.textContent =
+        total > SHOWN ? `${SHOWN} of ${total} — keep typing to narrow it` : `${total} found`;
+
+      const chosen = theme.assets[openLabel];
+      results.replaceChildren(
+        ...found.map((asset) =>
+          card(asset, {
+            chosen: chosen && asset.id === chosen.id,
+            onPick: (picked) => choose(openLabel, picked),
+          })
+        )
+      );
+    }
+
+    function choose(label, asset) {
+      theme = theme.withOverride(label, asset.id);
+      saved[theme.name] = { ...(saved[theme.name] || {}), [label]: asset.id };
+      onChange(theme, saved);
+      fill();
+      draw();
+    }
+
+    searchBox.addEventListener("input", () => {
+      clearTimeout(searchBox.timer);
+      searchBox.timer = setTimeout(fill, 120);
+    });
+    kindBox.addEventListener("change", fill);
+    $(".picker-close").addEventListener("click", close);
+    $(".picker-reset").addEventListener("click", () => {
+      if (!openLabel) return;
+      const wasSaved = saved[theme.name];
+      if (wasSaved) delete wasSaved[openLabel];
+      onChange(null, saved); // asks for the theme to be resolved afresh
+    });
+
+    return {
+      /** Show a theme, applying whatever was chosen for it before. */
+      show(next, remembered) {
+        saved = remembered;
+        theme = next;
+        const mine = saved[next.name] || {};
+        for (const [label, id] of Object.entries(mine)) {
+          if (!next.assets[label]) continue;
+          try {
+            theme = theme.withOverride(label, id);
+          } catch {
+            // The pack that had it is no longer ticked; the automatic pick stands.
+            delete mine[label];
+          }
+        }
+        close();
+        draw();
+        return theme;
+      },
+    };
+  }
+
+  return { makePalette };
 })();
 
 __module.background = (function () {
@@ -1569,6 +1893,7 @@ __module.background = (function () {
   const { buildSlab } = __module.slab;
   const talespire = __module.talespire;
   const { makeZoomable } = __module.zoom;
+  const { makePalette } = __module.palette;
 
   const $ = (id) => document.getElementById(id);
 
@@ -1941,35 +2266,32 @@ __module.background = (function () {
     select.onchange = applyTheme;
   }
 
+  let palette = null;
+
+  function thePalette() {
+    if (palette) return palette;
+    palette = makePalette({
+      into: $("theme-labels"),
+      picker: $("picker"),
+      thumbnail: (asset) => talespire.thumbnailFor(state.ts, asset),
+      onChange: (theme, saved) => {
+        state.saved = saved;
+        // A null theme is the "automatic" button: the remembered choice is gone,
+        // so the answer is whatever resolving it afresh gives.
+        if (theme) state.theme = theme;
+        else applyTheme();
+        talespire.save(state.ts, saved).catch(() => {});
+      },
+    });
+    return palette;
+  }
+
   function applyTheme() {
-    state.theme = state.themes[$("theme").value];
-    $("theme-readout").textContent = state.theme.warnings.length
-      ? `${state.theme.warnings.length} label(s) did not resolve`
+    const resolved = state.themes[$("theme").value];
+    $("theme-readout").textContent = resolved.warnings.length
+      ? `${resolved.warnings.length} label(s) did not resolve`
       : "every label resolved";
-
-    const box = $("theme-labels");
-    box.innerHTML = "";
-    for (const [label, asset] of Object.entries(state.theme.assets)) {
-      const row = document.createElement("div");
-      row.className = "row";
-      const title = document.createElement("b");
-      title.textContent = label;
-      row.appendChild(title);
-
-      const select = document.createElement("select");
-      const options = state.theme.alternativesFor(label);
-      const shown = options.length ? options : [asset];
-      for (const option of shown.slice(0, 400)) {
-        const el = document.createElement("option");
-        el.value = option.id;
-        el.textContent = option.name;
-        el.selected = option.id === asset.id;
-        select.appendChild(el);
-      }
-      select.onchange = () => { state.theme = state.theme.withOverride(label, select.value); };
-      row.appendChild(select);
-      box.appendChild(row);
-    }
+    state.theme = thePalette().show(resolved, state.saved);
   }
 
   // --- 5: the slabs -------------------------------------------------------------
@@ -2039,8 +2361,8 @@ __module.background = (function () {
 
       state.ts = await talespire.connect();
       if (state.ts) {
-        state.assets = await talespire.assetsFromPacks(state.ts);
-        state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
+        // Said before the asset list is read, so the panel still behaves like a
+        // panel if reading it goes wrong.
         document.body.classList.add("in-talespire");
         $("drop-text").textContent = "Choose a picture, or paste one with Ctrl+V…";
         $("upload-note").textContent =
@@ -2059,18 +2381,33 @@ __module.background = (function () {
         $("build-hint").textContent =
           "Click a section to take it in hand, then place it. Sections are laid " +
           "out in map order. Placing needs GM mode.";
+
+        const { assets, packs } = await talespire.assetsFromPacks(state.ts);
+        state.assets = assets;
+        state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
+        // Kept whether or not anything went wrong: it is the only view from
+        // outside the game of what the game actually said.
+        $("pack-dump").textContent = talespire.describePacks(packs);
+        $("what-talespire-said").hidden = false;
       } else {
         state.assets = (await Catalog.load()).assets;
       }
 
+      state.saved = await talespire.loadSaved(state.ts);
       state.specs = state.specs || (await (await fetch("./js/themes.json")).json());
       fillPacks();
       await usePacks();
     } catch (error) {
-      // Without a catalog nothing can be built, so say so where it will be read
-      // rather than failing quietly at the last step.
-      $("upload-info").textContent = error.message;
+      // Nothing can be built without a catalog, and the last time this failed the
+      // message sat in step one where nobody looked. It goes at the top now.
+      say(error.message);
     }
   })();
+
+  function say(message) {
+    const banner = $("banner");
+    banner.textContent = message;
+    banner.hidden = false;
+  }
 
 })();
