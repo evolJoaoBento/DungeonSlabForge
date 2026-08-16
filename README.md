@@ -1,8 +1,8 @@
-# slabforge (web)
+# DungeonSlabForge
 
 Turn a battlemap image into TaleSpire slabs, in your browser.
 
-**[Open it →](https://evoljoaobento.github.io/slabforge-web/)**
+**[Open it →](https://evoljoaobento.github.io/DungeonSlabForge/)**
 
 Everything runs in the tab. There is no server, so there is nowhere for your map
 to be uploaded to — the picture, the reading and the slab codes never leave your
