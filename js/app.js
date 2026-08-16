@@ -12,8 +12,13 @@ import { readMap } from "./reader.js";
 import { place } from "./layout.js";
 import { loadThemes } from "./themes.js";
 import { buildSlab } from "./slab.js";
+import * as talespire from "./talespire.js";
 
 const $ = (id) => document.getElementById(id);
+
+/** Packs left out unless asked for. A dungeon has no use for a sci-fi crate,
+ *  and leaving the pack in means a search for "crate" can answer with one. */
+const SKIP_BY_DEFAULT = /sci-?fi|cyberpunk/i;
 
 const COLOURS = {
   "#": "#6b7280", ".": "#c9b98d", "w": "#8b5a2b", "~": "#3b82f6", "+": "#b45309",
@@ -22,6 +27,10 @@ const COLOURS = {
 };
 
 const state = {
+  ts: null,         // TaleSpire's API, when running as a Symbiote
+  maxBytes: undefined,
+  assets: null,     // every asset found, before any pack is left out
+  specs: null,      // the themes as written, so packs can be re-picked cheaply
   catalog: null,
   themes: null,
   theme: null,
@@ -243,8 +252,49 @@ function drawReading() {
 
 // --- 4: the palette -----------------------------------------------------------
 
+/**
+ * The pack tick-list.
+ *
+ * On the page this is usually one line, because the catalog shipped with it was
+ * generated from one pack. In TaleSpire it is however many the player owns, and
+ * it matters: their install has the sci-fi pack in it whether this is a
+ * cyberpunk map or not.
+ */
+function fillPacks() {
+  const box = $("packs");
+  box.innerHTML = "";
+  const packs = [...new Set(state.assets.map((asset) => asset.pack))].sort();
+  $("packs-box").hidden = packs.length < 2;
+  for (const pack of packs) {
+    const label = document.createElement("label");
+    const tick = document.createElement("input");
+    tick.type = "checkbox";
+    tick.value = pack;
+    tick.checked = !SKIP_BY_DEFAULT.test(pack);
+    tick.onchange = usePacks;
+    label.append(tick, document.createTextNode(` ${pack}`));
+    box.appendChild(label);
+  }
+}
+
+/** Rebuild the catalog, and every theme with it, from the ticked packs. */
+async function usePacks() {
+  const wanted = new Set(
+    [...$("packs").querySelectorAll("input:checked")].map((tick) => tick.value)
+  );
+  const assets = state.assets.filter((asset) => wanted.has(asset.pack));
+  if (!assets.length) {
+    $("theme-readout").textContent = "tick at least one pack";
+    return;
+  }
+  state.catalog = new Catalog(assets);
+  state.themes = await loadThemes(state.catalog, state.specs);
+  fillThemes();
+}
+
 function fillThemes() {
   const select = $("theme");
+  const chosen = select.value;
   select.innerHTML = "";
   for (const [name, theme] of Object.entries(state.themes)) {
     const option = document.createElement("option");
@@ -252,6 +302,7 @@ function fillThemes() {
     option.textContent = `${name} — ${theme.description}`;
     select.appendChild(option);
   }
+  if (chosen && state.themes[chosen]) select.value = chosen;
   applyTheme();
   select.onchange = applyTheme;
 }
@@ -307,14 +358,10 @@ $("build").addEventListener("click", async () => {
       empty++;
     } else {
       try {
-        const slab = await buildSlab(placements);
+        const slab = await buildSlab(placements, state.maxBytes);
         card.innerHTML =
           `<b>${section.key}</b><small>${slab.instanceCount} tiles · ${slab.compressedBytes} bytes</small>`;
-        card.onclick = async () => {
-          await navigator.clipboard.writeText(slab.code);
-          document.querySelectorAll(".slab.copied").forEach((el) => el.classList.remove("copied"));
-          card.classList.add("copied");
-        };
+        card.onclick = () => takeSlab(card, slab.code);
         built++;
       } catch (error) {
         card.classList.add("empty");
@@ -326,16 +373,51 @@ $("build").addEventListener("click", async () => {
   }
   $("build-readout").textContent =
     `${built} slab(s) ready${empty ? `, ${empty} empty` : ""}${failed ? `, ${failed} too big` : ""}` +
-    " — click one to copy it";
+    (state.ts ? " — click one to take it in hand" : " — click one to copy it");
 });
+
+/**
+ * What clicking a finished section does.
+ *
+ * In TaleSpire the slab goes straight into the player's hand: they are already
+ * in the game, and asking them to copy a string and paste it into the window
+ * they are standing in would be a strange thing to do. Everywhere else it goes
+ * to the clipboard, which is the only way across.
+ */
+async function takeSlab(card, code) {
+  document.querySelectorAll(".slab.copied").forEach((el) => el.classList.remove("copied"));
+  try {
+    if (state.ts) await talespire.sendToHand(state.ts, code);
+    else await navigator.clipboard.writeText(code);
+    card.classList.add("copied");
+  } catch (error) {
+    $("build-readout").textContent = error.message;
+  }
+}
 
 // --- start --------------------------------------------------------------------
 
 (async function start() {
   try {
-    state.catalog = await Catalog.load();
-    state.themes = await loadThemes(state.catalog);
-    fillThemes();
+    // The Symbiote build inlines the themes: its own files are served over a
+    // scheme of TaleSpire's making, and fetching one is not promised to work.
+    state.specs = globalThis.SLABFORGE_THEMES || undefined;
+
+    state.ts = await talespire.connect();
+    if (state.ts) {
+      state.assets = await talespire.assetsFromPacks(state.ts);
+      state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
+      document.body.classList.add("in-talespire");
+      $("build-hint").textContent =
+        "Click a section to take it in hand, then place it. Sections are laid " +
+        "out in map order. Placing needs GM mode.";
+    } else {
+      state.assets = (await Catalog.load()).assets;
+    }
+
+    state.specs = state.specs || (await (await fetch("./js/themes.json")).json());
+    fillPacks();
+    await usePacks();
   } catch (error) {
     // Without a catalog nothing can be built, so say so where it will be read
     // rather than failing quietly at the last step.

@@ -142,3 +142,15 @@ footer {
   text-align: center;
 }
 footer a { color: var(--accent); }
+
+.packs { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0; }
+.packs label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+details#packs-box { margin-top: 10px; }
+details#packs-box summary { cursor: pointer; color: var(--dim); font-size: 13px; }
+
+/* Inside TaleSpire the page is a panel in a game, not a site: the parts that
+   exist to explain the site to a stranger only take up room there. */
+body.in-talespire header p,
+body.in-talespire footer { display: none; }
+body.in-talespire { font-size: 14px; }

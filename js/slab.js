@@ -131,12 +131,12 @@ function toBase64(bytes) {
 /**
  * The string to paste into TaleSpire, with what it cost to make it.
  */
-export async function buildSlab(placements) {
+export async function buildSlab(placements, maxBytes = MAX_COMPRESSED_BYTES) {
   const compressed = await gzip(encodeBody(placements));
-  if (compressed.length > MAX_COMPRESSED_BYTES) {
+  if (compressed.length > maxBytes) {
     throw new SlabError(
       `That slab is ${compressed.length} bytes compressed and TaleSpire takes ` +
-        `at most ${MAX_COMPRESSED_BYTES}. Use smaller sections.`
+        `at most ${maxBytes}. Use smaller sections.`
     );
   }
   return {

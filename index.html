@@ -93,6 +93,13 @@
     <select id="theme"></select>
     <span class="readout" id="theme-readout"></span>
   </div>
+  <details id="packs-box" hidden>
+    <summary>Which asset packs to build from</summary>
+    <div id="packs" class="packs"></div>
+    <p class="hint">Leave the sci-fi pack out of a dungeon and a search for a
+      crate stops answering with a sci-fi crate. Changing this rebuilds every
+      theme.</p>
+  </details>
   <div id="theme-labels" class="theme-labels"></div>
 </section>
 
@@ -102,8 +109,8 @@
     <button id="build" class="primary">Build slabs</button>
     <span class="readout" id="build-readout"></span>
   </div>
-  <p class="hint">Click a section to copy its code, then paste it in TaleSpire
-    with Ctrl+V. Sections are laid out in map order.</p>
+  <p class="hint" id="build-hint">Click a section to copy its code, then paste
+    it in TaleSpire with Ctrl+V. Sections are laid out in map order.</p>
   <div id="sections" class="sections"></div>
 </section>
 

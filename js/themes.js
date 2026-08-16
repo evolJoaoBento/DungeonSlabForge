@@ -9,8 +9,15 @@
 
 import { UnresolvedAsset } from "./catalog.js";
 
-export async function loadThemes(catalog, url = "./js/themes.json") {
-  const specs = await (await fetch(url)).json();
+/**
+ * The themes, resolved against a catalog.
+ *
+ * `source` is normally the file to fetch. The Symbiote build passes the specs
+ * themselves instead, because a Symbiote's own files are served over a scheme
+ * of TaleSpire's making and there is no promise that fetching one works.
+ */
+export async function loadThemes(catalog, source = "./js/themes.json") {
+  const specs = typeof source === "string" ? await (await fetch(source)).json() : source;
   const themes = {};
   for (const [name, spec] of Object.entries(specs)) themes[name] = resolveTheme(name, spec, catalog);
   return themes;
