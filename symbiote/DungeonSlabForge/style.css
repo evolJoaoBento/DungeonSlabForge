@@ -1,0 +1,156 @@
+:root {
+  --bg: #14161a;
+  --panel: #1b1e24;
+  --line: #2c313a;
+  --ink: #e7e9ee;
+  --dim: #98a0ae;
+  --accent: #d99a3a;
+  --danger: #d66;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+header h1 { margin: 0; font-size: 22px; letter-spacing: .2px; }
+header p { margin: 4px 0 0; color: var(--dim); max-width: 60ch; }
+
+.coffee {
+  background: var(--accent);
+  color: #14161a;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 9px 16px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.coffee:hover { filter: brightness(1.08); }
+
+main { max-width: 1100px; margin: 0 auto; padding: 24px 28px 60px; }
+
+.step {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.step h2 { margin: 0 0 12px; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+.num {
+  display: inline-grid;
+  place-items: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--dim);
+  font-size: 13px;
+}
+
+.hint { color: var(--dim); font-size: 13px; margin: 8px 0; max-width: 78ch; }
+.hint code { background: #0e1013; padding: 1px 5px; border-radius: 4px; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+.controls label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+
+button, .button, select, input[type="number"] {
+  background: #262b34;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover, .button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #14161a; border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+
+.drop {
+  display: block;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 28px;
+  text-align: center;
+  color: var(--dim);
+  cursor: pointer;
+}
+.drop:hover, .drop.over { border-color: var(--accent); color: var(--ink); }
+
+.readout { color: var(--dim); font-size: 13px; }
+
+.preview { margin-top: 12px; overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 8px; }
+.preview canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
+
+.theme-labels {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.theme-labels .row {
+  background: #0e1013;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.theme-labels .row b { display: block; color: var(--dim); font-weight: 500; font-size: 12px; }
+.theme-labels select { width: 100%; margin-top: 5px; font-size: 12px; padding: 4px 6px; }
+
+.sections { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sections .slab {
+  background: #0e1013;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 130px;
+}
+.sections .slab:hover { border-color: var(--accent); }
+.sections .slab.copied { border-color: #4ade80; color: #4ade80; }
+.sections .slab.empty { opacity: .45; cursor: default; }
+.sections .slab small { display: block; color: var(--dim); font-size: 11px; }
+
+footer {
+  border-top: 1px solid var(--line);
+  padding: 18px 28px 40px;
+  color: var(--dim);
+  font-size: 13px;
+  text-align: center;
+}
+footer a { color: var(--accent); }
+
+.packs { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0; }
+.packs label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+details#packs-box { margin-top: 10px; }
+details#packs-box summary { cursor: pointer; color: var(--dim); font-size: 13px; }
+
+/* Inside TaleSpire the page is a panel in a game, not a site: the parts that
+   exist to explain the site to a stranger only take up room there. */
+body.in-talespire header p,
+body.in-talespire footer { display: none; }
+body.in-talespire { font-size: 14px; }

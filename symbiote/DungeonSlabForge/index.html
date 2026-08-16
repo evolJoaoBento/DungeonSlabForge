@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DungeonSlabForge — battlemap images into TaleSpire slabs</title>
+<meta name="description" content="Turn a battlemap image into TaleSpire slabs, in your browser. Nothing is uploaded.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🧱</text></svg>">
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>DungeonSlabForge</h1>
+    <p>Battlemap image &rarr; TaleSpire slabs. Everything happens in this tab —
+      your map is never uploaded anywhere, and the asset list is already here.</p>
+  </div>
+  <a class="coffee" href="https://buymeacoffee.com/joaobento" target="_blank" rel="noopener">
+    ☕ Buy me a coffee
+  </a>
+</header>
+
+<main>
+
+<section class="step" id="step-upload">
+  <h2><span class="num">1</span> Map image</h2>
+  <label class="drop" for="file">
+    <input type="file" id="file" accept="image/*" hidden>
+    <span id="drop-text">Choose a battlemap, or drop one here&hellip;</span>
+  </label>
+  <p class="hint" id="upload-info"></p>
+  <div class="controls">
+    <select id="map-style">
+      <option value="lit_on_dark" selected>Lit map on dark</option>
+      <option value="transparent">Transparent background</option>
+      <option value="dark_on_light">Dark lines on light (rough)</option>
+    </select>
+    <button id="cut-background">Remove background</button>
+    <button id="restore-background" hidden>Put it back</button>
+    <span class="readout" id="background-readout"></span>
+  </div>
+  <p class="hint">Tone alone cannot tell a table drawn in shadow from the empty
+    page around the map. Cutting the background out settles it, and the map then
+    reads by its transparency rather than by how dark things are. The first cut
+    downloads a model, once.</p>
+</section>
+
+<section class="step" id="step-grid" hidden>
+  <h2><span class="num">2</span> Scale</h2>
+  <div class="controls">
+    <label>Pixels per square
+      <input type="range" id="px" min="8" max="300" value="70">
+      <output id="px-out">70</output>
+    </label>
+    <label>Section size (tiles)
+      <input type="number" id="section" min="2" max="100" value="20">
+    </label>
+    <span class="readout" id="grid-readout"></span>
+  </div>
+  <div class="controls">
+    <label>Grid starts at X
+      <input type="range" id="origin-x" min="0" max="299" value="0">
+      <output id="origin-x-out">0</output>
+    </label>
+    <label>Grid starts at Y
+      <input type="range" id="origin-y" min="0" max="299" value="0">
+      <output id="origin-y-out">0</output>
+    </label>
+    <button id="origin-reset">Back to the corner</button>
+  </div>
+  <p class="hint">Nudge the pivot until the drawn grid and the overlay line up.
+    Whatever sits before the pivot is margin, not map.</p>
+  <div class="preview"><canvas id="overlay"></canvas></div>
+</section>
+
+<section class="step" id="step-labels" hidden>
+  <h2><span class="num">3</span> Read the map</h2>
+  <div class="controls">
+    <button id="read-map" class="primary">Read map now</button>
+    <span class="readout" id="read-readout"></span>
+  </div>
+  <p class="hint">Instant and free. Floors keep their cells; walls are drawn as
+    lines on the boundaries between cells, because that is what they are.</p>
+  <div class="preview paint">
+    <canvas id="paint"></canvas>
+  </div>
+</section>
+
+<section class="step" id="step-theme" hidden>
+  <h2><span class="num">4</span> Palette</h2>
+  <div class="controls">
+    <select id="theme"></select>
+    <span class="readout" id="theme-readout"></span>
+  </div>
+  <details id="packs-box" hidden>
+    <summary>Which asset packs to build from</summary>
+    <div id="packs" class="packs"></div>
+    <p class="hint">Leave the sci-fi pack out of a dungeon and a search for a
+      crate stops answering with a sci-fi crate. Changing this rebuilds every
+      theme.</p>
+  </details>
+  <div id="theme-labels" class="theme-labels"></div>
+</section>
+
+<section class="step" id="step-build" hidden>
+  <h2><span class="num">5</span> Slabs</h2>
+  <div class="controls">
+    <button id="build" class="primary">Build slabs</button>
+    <span class="readout" id="build-readout"></span>
+  </div>
+  <p class="hint" id="build-hint">Click a section to copy its code, then paste
+    it in TaleSpire with Ctrl+V. Sections are laid out in map order.</p>
+  <div id="sections" class="sections"></div>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    DungeonSlabForge runs entirely in your browser.
+    <a href="https://github.com/evolJoaoBento/DungeonSlabForge" target="_blank" rel="noopener">Source</a>
+    ·
+    <a href="https://buymeacoffee.com/joaobento" target="_blank" rel="noopener">Buy me a coffee</a>
+  </p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
