@@ -287,9 +287,18 @@ async function usePacks() {
     $("theme-readout").textContent = "tick at least one pack";
     return;
   }
-  state.catalog = new Catalog(assets);
-  state.themes = await loadThemes(state.catalog, state.specs);
-  fillThemes();
+  try {
+    const catalog = new Catalog(assets);
+    // A theme with no floor throws rather than resolving, so the swap happens
+    // only once both survive — otherwise unticking the one pack that had a
+    // floor would leave the palette showing assets the catalog no longer has.
+    const themes = await loadThemes(catalog, state.specs);
+    state.catalog = catalog;
+    state.themes = themes;
+    fillThemes();
+  } catch (error) {
+    $("theme-readout").textContent = error.message;
+  }
 }
 
 function fillThemes() {

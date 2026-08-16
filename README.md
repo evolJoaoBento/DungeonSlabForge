@@ -36,10 +36,11 @@ python tools/build_catalog.py --skip cyberpunk_and_sci-fi
 The same thing runs as a Symbiote, in a panel in the game, so a map goes from
 picture to placed without alt-tabbing.
 
-Copy `symbiote/DungeonSlabForge` into TaleSpire's `Symbiotes` directory:
+Copy `symbiote/DungeonSlabForge` into TaleSpire's `Symbiotes` directory. That is
+beside your saves, not in the Steam install:
 
 ```
-C:\Program Files (x86)\Steam\steamapps\common\TaleSpire\Symbiotes\DungeonSlabForge
+%USERPROFILE%\AppData\LocalLow\Bouncyrock Entertainment\TaleSpire\Symbiotes\DungeonSlabForge
 ```
 
 Two things change when it runs there:
