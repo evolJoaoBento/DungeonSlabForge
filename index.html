@@ -30,6 +30,14 @@
     <span id="drop-text">Choose a battlemap, or drop one here&hellip;</span>
   </label>
   <p class="hint" id="upload-info"></p>
+  <div class="controls" id="upload-fallbacks">
+    <label>Or load a file sitting beside this Symbiote
+      <input type="text" id="image-path" placeholder="map.png" size="22">
+    </label>
+    <button id="load-path">Load it</button>
+  </div>
+  <p class="hint" id="upload-note"></p>
+  <p class="hint mono" id="upload-diagnostics"></p>
   <div class="controls">
     <select id="map-style">
       <option value="lit_on_dark" selected>Lit map on dark</option>

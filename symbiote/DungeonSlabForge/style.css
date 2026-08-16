@@ -154,3 +154,10 @@ details#packs-box summary { cursor: pointer; color: var(--dim); font-size: 13px;
 body.in-talespire header p,
 body.in-talespire footer { display: none; }
 body.in-talespire { font-size: 14px; }
+
+/* Only meaningful inside the game, where there is no file dialog. */
+#upload-fallbacks, #upload-note, #upload-diagnostics { display: none; }
+body.in-talespire #upload-fallbacks { display: flex; }
+body.in-talespire #upload-note,
+body.in-talespire #upload-diagnostics { display: block; }
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; opacity: .7; }

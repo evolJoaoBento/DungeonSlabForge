@@ -43,7 +43,13 @@ beside your saves, not in the Steam install:
 %USERPROFILE%\AppData\LocalLow\Bouncyrock Entertainment\TaleSpire\Symbiotes\DungeonSlabForge
 ```
 
-Two things change when it runs there:
+Three things change when it runs there:
+
+- **Getting a picture in.** The file dialog opens, but TaleSpire keeps the focus
+  and it opens *behind* the game — which looks exactly like a button doing
+  nothing. Alt-tab to it, or use one of the two ways that never leave the panel:
+  copy a picture and press **Ctrl+V**, or put the file in the Symbiote's own
+  folder and type its name. A Symbiote cannot read outside that folder.
 
 - **The asset list is yours.** Instead of the list shipped with the page, it
   reads every pack you actually own out of `TS.contentPacks`, so a slab can only

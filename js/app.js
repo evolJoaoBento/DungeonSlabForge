@@ -42,16 +42,20 @@ const state = {
 
 // --- 1: the picture -----------------------------------------------------------
 
-async function useImage(file) {
-  const bitmap = await createImageBitmap(file);
+async function useImage(source, name) {
+  // Either a picked file or an <img> already loaded from a path: inside
+  // TaleSpire there is no file dialog to open, so a picture more often arrives
+  // as something fetched than as something chosen.
+  const drawable =
+    source instanceof HTMLImageElement ? source : await createImageBitmap(source);
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  canvas.getContext("2d").drawImage(bitmap, 0, 0);
+  canvas.width = drawable.naturalWidth || drawable.width;
+  canvas.height = drawable.naturalHeight || drawable.height;
+  canvas.getContext("2d").drawImage(drawable, 0, 0);
 
   state.image = canvas;
   state.original = canvas;
-  $("drop-text").textContent = file.name;
+  $("drop-text").textContent = name;
   $("restore-background").hidden = true;
   $("background-readout").textContent = "";
 
@@ -77,15 +81,69 @@ async function useImage(file) {
   refreshGrid();
 }
 
-$("file").addEventListener("change", (e) => e.target.files[0] && useImage(e.target.files[0]));
+$("file").addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (file) useImage(file, file.name).catch(sayUploadFailed);
+});
+
 const drop = document.querySelector(".drop");
 ["dragover", "dragleave", "drop"].forEach((name) =>
   drop.addEventListener(name, (event) => {
     event.preventDefault();
     drop.classList.toggle("over", name === "dragover");
-    if (name === "drop" && event.dataTransfer.files[0]) useImage(event.dataTransfer.files[0]);
+    const file = name === "drop" && event.dataTransfer.files[0];
+    if (file) useImage(file, file.name).catch(sayUploadFailed);
   })
 );
+
+/**
+ * Getting a picture in without the file dialog.
+ *
+ * The dialog works inside TaleSpire, but the game keeps the focus and the
+ * dialog opens behind it, which reads exactly like a button that does nothing.
+ * These two ways in never leave the panel.
+ */
+
+// Ctrl+V. Costs nothing when the clipboard holds no picture, and is the
+// shortest path from a screenshot to a map.
+window.addEventListener("paste", (event) => {
+  const item = [...(event.clipboardData?.items || [])].find((entry) =>
+    entry.type.startsWith("image/")
+  );
+  if (!item) return;
+  event.preventDefault();
+  useImage(item.getAsFile(), "pasted picture").catch(sayUploadFailed);
+});
+
+function loadImageAt(source) {
+  return new Promise((settle, fail) => {
+    const image = new Image();
+    image.onload = () => settle(image);
+    image.onerror = () => fail(new Error("nothing there, or not a picture"));
+    image.src = source;
+  });
+}
+
+// A path, resolved against the Symbiote's own folder. A Symbiote cannot read
+// outside its directory, so a map has to be copied in beside it — but that is
+// a copy the player makes once, and it needs no dialog.
+$("load-path").addEventListener("click", async () => {
+  const path = $("image-path").value.trim() || "map.png";
+  $("upload-info").textContent = `looking for ${path}…`;
+  try {
+    await useImage(await loadImageAt(path), path);
+  } catch (error) {
+    $("upload-info").textContent = `Could not load ${path}: ${error.message}`;
+  }
+});
+
+$("image-path").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") $("load-path").click();
+});
+
+function sayUploadFailed(error) {
+  $("upload-info").textContent = `Could not read that picture: ${error.message}`;
+}
 
 $("cut-background").addEventListener("click", async () => {
   $("cut-background").disabled = true;
@@ -417,6 +475,20 @@ async function takeSlab(card, code) {
       state.assets = await talespire.assetsFromPacks(state.ts);
       state.maxBytes = (await talespire.maxSlabBytes(state.ts)) ?? undefined;
       document.body.classList.add("in-talespire");
+      $("drop-text").textContent = "Choose a picture, or paste one with Ctrl+V…";
+      $("upload-note").textContent =
+        "Choosing a file does open a dialog, but TaleSpire keeps the focus and " +
+        "the dialog opens behind the game — alt-tab to it. Two ways round that: " +
+        "copy a picture and press Ctrl+V here, or put the file in this " +
+        "Symbiote's own folder and type its name above. A Symbiote cannot read " +
+        "outside that folder.";
+      // Written where it can be read back: the one thing nobody can see from
+      // outside the game is what its web view will and will not do.
+      $("upload-diagnostics").textContent =
+        `served from ${location.protocol}${location.host ? "//" + location.host : ""} · ` +
+        `picker ${typeof window.showOpenFilePicker === "function" ? "yes" : "no"} · ` +
+        `clipboard ${navigator.clipboard ? "yes" : "no"} · ` +
+        `fetch ${typeof fetch === "function" ? "yes" : "no"}`;
       $("build-hint").textContent =
         "Click a section to take it in hand, then place it. Sections are laid " +
         "out in map order. Placing needs GM mode.";
