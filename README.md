@@ -18,10 +18,17 @@ machine.
 4. **Picks a palette**, with a swap for every label.
 5. **Builds slabs** you click to copy and paste straight into TaleSpire.
 
-The asset list ships with the page — 2875 assets from the packs TaleSpire
-itself comes with, 130 KB compressed — so there is nothing to set up first.
+The asset list ships with the page — 2025 fantasy assets, 90 KB compressed —
+so there is nothing to set up first. It is the Medieval Fantasy pack only: a
+dungeon has no use for a cyberpunk one, and leaving it in means a search for a
+crate can answer with a sci-fi crate.
+
 `tools/build_catalog.py` regenerates it from an installed copy after a game
-update.
+update, and `--skip <pack>` is how a pack is left out:
+
+```sh
+python tools/build_catalog.py --skip cyberpunk_and_sci-fi
+```
 
 ## How it reads a map
 
@@ -87,6 +94,6 @@ If it saved you an evening of laying tiles by hand,
 MIT, for the code.
 
 TaleSpire and its asset packs belong to Bouncyrock. `js/catalog.json` is a list
-of asset names, ids, tags and sizes taken from the packs the game ships with —
+of asset names, ids, tags and sizes taken from the Medieval Fantasy pack —
 metadata only, no art, no meshes, nothing playable — included so the page works
 without setup. If Bouncyrock would rather it were not here, say so and it goes.

@@ -32,6 +32,24 @@ CANDIDATES = (
 KINDS = ("Tiles", "Props")
 
 
+def parse_arguments(argv: list[str]) -> tuple[str | None, set[str]]:
+    """The path to look in, and the packs to leave out of what is found."""
+    where: str | None = None
+    skip: set[str] = set()
+    rest = list(argv)
+    while rest:
+        argument = rest.pop(0)
+        if argument == "--skip":
+            if not rest:
+                raise SystemExit("--skip needs the name of a pack.")
+            skip.add(rest.pop(0).strip().lower())
+        elif where is None:
+            where = argument
+        else:
+            raise SystemExit(f"Did not expect {argument!r}.")
+    return where, skip
+
+
 def find_taleweaver(argument: str | None) -> Path:
     if argument:
         given = Path(argument)
@@ -78,10 +96,14 @@ def read_pack(index: Path) -> tuple[str, list[dict]]:
 
 
 def main() -> None:
-    weaver = find_taleweaver(sys.argv[1] if len(sys.argv) > 1 else None)
+    where, skip = parse_arguments(sys.argv[1:])
+    weaver = find_taleweaver(where)
     everything: list[dict] = []
     for index in sorted(weaver.glob("*/index.json")):
         pack, assets = read_pack(index)
+        if pack.lower() in skip:
+            print(f"  {pack:24} {len(assets):5} assets  (left out)")
+            continue
         print(f"  {pack:24} {len(assets):5} assets")
         everything.extend(assets)
 
