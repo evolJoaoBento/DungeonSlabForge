@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 OUT = Path(__file__).resolve().parent.parent / "assets"
 
@@ -86,11 +86,61 @@ def draw_badge(size: int, grid: int = 12) -> Image.Image:
     return image
 
 
+def a_font(size: int, bold: bool = False):
+    """Whatever this machine has that is close enough, or nothing."""
+    for name in (["seguisb.ttf", "segoeuib.ttf"] if bold else ["segoeui.ttf"]) + [
+        "arialbd.ttf" if bold else "arial.ttf",
+        "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
+    ]:
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def draw_logo(width: int = 1280, height: int = 720) -> Image.Image:
+    """The listing's banner: mod.io wants 16:9, and no smaller than 512x288.
+
+    Drawn at the largest size it makes thumbnails from, so every one of them is
+    a reduction rather than an enlargement. The dungeon sits to the right at a
+    size where its doors and flagstones still tell, and the name to the left,
+    because a listing is read at a fifth of this and the name has to survive it.
+    """
+    image = Image.new("RGBA", (width, height), VOID)
+    pen = ImageDraw.Draw(image)
+
+    # The same dungeon, drawn big enough to be scenery rather than an icon.
+    plan = draw_colour(576, grid=16).resize((576, 576), Image.NEAREST)
+    image.alpha_composite(plan, (width - 576 - 48, (height - 576) // 2))
+
+    # It fades into the background rather than stopping at an edge, so the
+    # picture reads as one thing at thumbnail size.
+    fade = Image.new("RGBA", (200, height), (0, 0, 0, 0))
+    for x in range(200):
+        ImageDraw.Draw(fade).line(
+            [(x, 0), (x, height)], fill=VOID[:3] + (int(255 * (1 - x / 200)),)
+        )
+    image.alpha_composite(fade, (width - 576 - 48, 0))
+
+    pen.text((72, 250), "Dungeon", font=a_font(96, bold=True), fill=(231, 233, 238, 255))
+    pen.text((72, 350), "SlabForge", font=a_font(96, bold=True), fill=(217, 154, 58, 255))
+    pen.text(
+        (76, 470),
+        "Top-down maps into TaleSpire slabs,\nwithout leaving the game.",
+        font=a_font(34),
+        fill=(152, 160, 174, 255),
+        spacing=10,
+    )
+    return image
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, image in [
         ("icon-64.png", draw_colour(64)),
         ("icon-24.png", draw_badge(24)),
+        ("logo-1280x720.png", draw_logo()),
     ]:
         image.save(OUT / name)
         print(f"wrote {OUT / name}  {image.size[0]}x{image.size[1]}")
